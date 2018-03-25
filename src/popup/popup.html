@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <link rel="stylesheet" type="text/css" href="popup.css">
+        <script type="text/javascript" src="../background/background.msg.js"></script>
+        <script type="text/javascript" src="popup.js"></script>
+    </head>
+    <body>
+        <div id="div_notice">
+
+        </div>
+
+        <div id="div_tabGroupList">
+            <table id="tbl_tabGroupList">
+
+            </table>
+        </div>
+
+        <br>
+        
+        <div id="div_addGroup">
+            <button id="btn_addGroup">Add a new group</button>
+        </div>
+        <div id="div_setting">
+            <button id="btn_setting">Setting</button>
+            <div id="div_settingList" class="cHidden">
+                <input type="checkbox" id="cb_settingAutoClosePopup" title="close this popup when mouseleave" ><span class="cText">Auto close this popup</span><br>
+                <input type="checkbox" id="cb_settingDiscardWhenHidden" title="unload tab group when it's hidden." ><span class="cText">Discard tabs when hidden</span><br>
+                <input type="checkbox" id="cb_settingMuteWhenHidden" title="mute tab group when it's hidden."><span class="cText">Mute tabs when hidden</span><br>
+                <input type="checkbox" id="cb_showAdvancedButtons" title="show some buttons."><span class="cText">Show advanced buttons</span><br>
+                <input type="checkbox" id="cb_debug" title="enable console output"><span class="cText">debug</span><br>
+            </div>
+        </div>
+        <div id="div_advencedButtons" class="cHidden">
+            <hr>
+            <button id="btn_discardOnetime" title="discard all hidden tabs. ignore noDiscard option.">Discared hidden tabs</button><br>
+            <button id="btn_resetAll" title="clear all groups, settings, local storage and session values">Reset All</button>
+        </div>
+    </body>
+</html>

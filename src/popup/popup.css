@@ -1,0 +1,50 @@
+@charset "utf-8";
+
+document
+{
+    background: white;
+}
+
+body
+{
+    padding:5px;
+}
+
+input, button
+{
+    border: none;
+    background: rgba(0, 0, 0, 0);
+}
+
+input[type="text"]
+{
+    padding: 3px;
+    border: thin solid olive;
+}
+
+button
+{
+    padding-left:1px;
+    padding-right:1px;
+    cursor:pointer;
+    color: midnightblue;
+}
+
+button:hover
+{
+    color: blue;
+}
+
+#div_notice
+{
+    font-size:small;
+}
+
+.cHidden
+{
+    display:none;
+}
+.cText 
+{
+    font-size: small;
+}
