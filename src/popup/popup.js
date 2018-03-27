@@ -1,3 +1,4 @@
+//TODO: pager for tabGroups
 //#region global variables
 var tabGroups = 
 {
@@ -14,7 +15,8 @@ var tabGroups =
 
 var state = 
 { 
-    currentGroup:""
+    currentGroup:"",
+    tabGroupsOrder:[]
 };
 var settings = 
 {
@@ -30,6 +32,7 @@ var settings =
 
 var port;
 //#endregion
+
 
 function dlog( ...args )
 {
@@ -48,6 +51,7 @@ function Notice( msg = "" )
     }, 5000 );
 }
 
+//#region tab group management functions
 function ChangeGroupName( ev ) 
 {
     var id = ev.target.id.substr( "groupID_".length );
@@ -66,21 +70,100 @@ function ChagneCurrentGroup( ev )
     port.postMessage( { msg: bgMsg.SetCurrentGroup, data:{ "id": id } } );
 }
 
-function RemoveTabGroup( ev )
+function AddGroup()
+{
+    if( !initDone )
+    {
+        return;
+    }
+
+    port.postMessage( { msg:bgMsg.AddNewGroup } );
+}
+
+function RemoveTab( targetId = "" )
 {
     if( Object.keys( tabGroups ).length == 1 )
     {
         Notice( "Can not remove the last group.");
         return;
     }
-    var id = ev.target.id.substr( "groupID_".length );
 
-    if( confirm( `Remove "${ tabGroups[id].name }" group?\r\n( contains ${tabGroups[id].tabs.length == 0 ? 1 : tabGroups[id].tabs.length } tabs. )` ) )
+    if( targetId.length == 0 )
     {
-        port.postMessage( { msg:bgMsg.RemoveTabGroup, data:{ "id":id } } );
+        Notice( "targetId is null." );
+        return;
+    }
+
+    if( confirm( `Remove "${ tabGroups[targetId].name }" group?\r\n( contains ${tabGroups[targetId].tabs.length == 0 ? 1 : tabGroups[targetId].tabs.length } tabs. )` ) )
+    {
+        port.postMessage( { msg: bgMsg.RemoveTabGroup, data:{ "id": targetId } } );
     }
 }
 
+function ChangeTabGroupsOrder( targetId = "", order = "up" ) // order "up" or "down"
+{
+    function init()
+    {
+        state.tabGroupsOrder = [];
+
+        for( let gid in tabGroups )
+        {
+            state.tabGroupsOrder.push( gid );
+        }
+    }
+
+    if( state.tabGroupsOrder.length == 0 )
+    {
+        init();        
+    }
+
+    let idx = state.tabGroupsOrder.indexOf( targetId );
+
+    if( idx == - 1 )
+    {
+        let msg = `Error: ChangeTabGroupsOrder() idx is -1, targetId:${targetId}`;
+        Notice( msg );
+        console.error( msg );
+        return;
+    }
+
+    let idxForReplace = -1;
+
+    if( order == "up" )
+    {
+        if( idx > 0 )
+        {
+            idxForReplace = idx - 1;
+        }
+    }
+    else
+    {
+        if( idx < ( state.tabGroupsOrder.length - 1 ) )
+        {
+            idxForReplace = idx + 1;
+        }
+    }
+
+    if( idxForReplace == -1 )
+    {
+        return;
+    }
+
+    let tmpValue = state.tabGroupsOrder[idxForReplace];
+
+    state.tabGroupsOrder[idxForReplace] = state.tabGroupsOrder[idx];
+
+    state.tabGroupsOrder[idx] = tmpValue;
+
+    port.postMessage( { msg: bgMsg.SetTabGroupsOrder, data: state.tabGroupsOrder } );
+
+    CreateTabGroupsHtml();
+
+
+}
+//#endregion
+
+//#region html functions
 function RefreshTabGroupList()
 {
     let collection = document.getElementsByClassName( "cGroupNameInput" );
@@ -102,11 +185,11 @@ function RefreshTabGroupList()
         elem.addEventListener( "click", ChagneCurrentGroup );
     }
 
-    collection = document.getElementsByClassName( "cRemoveTabGroup" );
+    collection = document.getElementsByClassName( "cTabGroupMenuButton" );
 
     for( let elem of collection )
     {
-        elem.addEventListener( "click", RemoveTabGroup );
+        elem.addEventListener( "click", OnTabGroupMenuClicked );
     }
 
     collection = document.getElementsByClassName( "cUnmuteTabGroup" );
@@ -133,7 +216,7 @@ function RefreshTabGroupList()
 
 function MakeTabGroupRow( name = "", id = "", currentGroup = false )
 {
-    var ret = `<tr id="groupRowID_${id}">`;
+    var ret = `<tr id="groupRowID_${id}" class="cTabGroupRow">`;
 
     if( currentGroup )
     {
@@ -168,52 +251,47 @@ function MakeTabGroupRow( name = "", id = "", currentGroup = false )
 
     ret += `
         <td>[${tabGroups[id].tabs.length == 0 ? 1 : tabGroups[id].tabs.length }]</td>
-        <td><button class="cRemoveTabGroup" id="groupID_${id}" tabindex="3">Remove</button></td>
-    `
-    
+        <td><button style="font-weight:bold;" id="groupMenuID_${id}" tabindex="3" class="cTabGroupMenuButton" >&#8943;</button></td> 
+    `;
+
     ret += `</tr>`
+
     return ret;
 }
 
 function CreateTabGroupsHtml()
 {
-    var tabGroupIDs = Object.keys( tabGroups );
+    function MakeRow( div, gid )
+    {
+        let name = tabGroups[gid].name;
+        let tabs = tabGroups[gid].tabs;
 
-    var div = document.getElementById( "tbl_tabGroupList" );
-
-    div.innerHTML = "";
-
-    tabGroupIDs.forEach( tabGroupID => {
-        
-        var groupName = tabGroups[tabGroupID].name;
-        var tabs      = tabGroups[tabGroupID].tabs;
-
-        if( tabGroupID == state.currentGroup )
+        if( gid == state.currentGroup )
         {
-            div.innerHTML += MakeTabGroupRow( groupName, tabGroupID, true );
+            div.innerHTML += MakeTabGroupRow( name, gid, true );
         }
         else
         {
-            div.innerHTML += MakeTabGroupRow( groupName, tabGroupID );
+            div.innerHTML += MakeTabGroupRow( name, gid );
         }
-        
-    } );
+    }
+
+    let div = document.getElementById( "tbl_tabGroupList" );
+
+    div.innerHTML = "";
+
+    for( let gid of state.tabGroupsOrder )
+    {
+        MakeRow( div, gid );
+    }
 
     RefreshTabGroupList();
     
     initDone = true;
 }
+//#endregion
 
-function AddGroup()
-{
-    if( !initDone )
-    {
-        return;
-    }
-
-    port.postMessage( { msg:bgMsg.AddNewGroup } );
-}
-
+//#region setting functions
 function OnSettingClicked()
 {
     let elem = document.getElementById( "div_settingList" );
@@ -282,11 +360,6 @@ function OnSettingClicked()
     elem.className = "";
 }
 
-function OnDiscardClicked()
-{
-    port.postMessage( { msg:bgMsg.DiscardOneTime } );
-}
-
 function OnMuteClicked( ev )
 {
     let id = ev.target.id.substr( "groupMuteID_".length );
@@ -307,7 +380,9 @@ function OnNoDiscardChanged( ev )
 
     port.postMessage( { msg:bgMsg.SetNoDicard, data:{ groupId:id, value:value } } );
 }
+//#endregion
 
+//#region advanced button functions
 function OnResetAllClicked()
 {
     if( confirm( "are you sure" ) )
@@ -316,6 +391,111 @@ function OnResetAllClicked()
     }
 }
 
+function OnDiscardClicked()
+{
+    port.postMessage( { msg:bgMsg.DiscardOneTime } );
+}
+//#endregion
+
+//#region tab group menu functions
+function OnTabGroupMenuClicked( ev )
+{
+    let elem = document.getElementById( "div_tabGroupMenu" );
+
+    let wrapper = document.getElementById( "wrapper" );
+
+    let targetId = ev.target.id.substr( "groupMenuID_".length );
+
+    //show menu
+    elem.className = "cTabGroupMenu";
+
+    //set menu position, change wrapper size
+    let totalHeight = elem.clientHeight + ev.clientY;
+
+    if( totalHeight >= wrapper.clientHeight )
+    {
+        wrapper.style["height"] = ( totalHeight + 5 ) + "px";
+    }
+    else
+    {
+        wrapper.style["height"] = "auto";
+    }
+
+    elem.style["top"] = ev.clientY + "px";
+
+    elem.style["left"] = ( ev.clientX - elem.clientWidth ) + "px";
+
+    //add listeners
+    elem.addEventListener( "mouseleave", OnTabGroupMenuMouseleave );
+
+    elem.setAttribute( "data-groupId", targetId );
+
+    SwitchMenuButtonListeners( true );
+}
+
+function OnTabGroupMenuMouseleave( ev )
+{
+    ev.target.removeEventListener( "mouseleave", OnTabGroupMenuMouseleave );
+
+    ev.target.className = "cTabGroupMenu cHidden";
+
+    let wrapper = document.getElementById( "wrapper" );
+
+    wrapper.style["height"] = "auto";
+
+    SwitchMenuButtonListeners( false );
+}
+
+function SwitchMenuButtonListeners( add = true )
+{
+    let btn_rowUp = document.getElementById( "btn_tabGroupMenuRowUp");
+
+    let btn_rowDown = document.getElementById( "btn_tabGroupMenuRowDown");
+
+    let btn_remove = document.getElementById( "btn_tabGroupMenuRemove");
+
+    if( add )
+    {
+        btn_rowUp.addEventListener( "click", TabGroupMenuRowUpListener );
+
+        btn_rowDown.addEventListener( "click", TabGroupMenuRowDownListener );
+
+        btn_remove.addEventListener( "click", TabGroupMenuRemoveListener );
+    }
+    else
+    {
+        btn_rowUp.removeEventListener( "click", TabGroupMenuRowUpListener );
+
+        btn_rowDown.removeEventListener( "click", TabGroupMenuRowDownListener );
+
+        btn_remove.removeEventListener( "click", TabGroupMenuRemoveListener );
+    }
+    
+}
+
+function TabGroupMenuRowUpListener( ev )
+{
+    let targetId = document.getElementById( "div_tabGroupMenu" ).getAttribute( "data-groupId" );
+
+    ChangeTabGroupsOrder( targetId, "up" );
+}
+
+function TabGroupMenuRowDownListener( ev )
+{
+    let targetId = document.getElementById( "div_tabGroupMenu" ).getAttribute( "data-groupId" );
+
+    ChangeTabGroupsOrder( targetId, "down" );
+}
+
+function TabGroupMenuRemoveListener( ev )
+{
+    let targetId = document.getElementById( "div_tabGroupMenu" ).getAttribute( "data-groupId" );
+
+    RemoveTab( targetId );
+}
+//#endregion
+
+//#region auto close functions
 var AutoCloseMouseEnterFlag = false;
 
 function AutoCloseMouseLeave( ev )
@@ -364,9 +544,11 @@ function SetAutoClose( bClose = false )
        document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
     }
 }
+//#endregion
 
 window.onload = async function() 
 {
+    //connect to background
     port = browser.runtime.connect( { name:"@simplifiedtabgroup" } );
 
     port.onDisconnect.addListener( m => { 
@@ -388,7 +570,7 @@ window.onload = async function()
 
                 settings = obj.data.settings;
 
-                state.currentGroup = obj.data.currentGroup;
+                state = obj.data.state;
 
                 tabGroups = obj.data.tabGroups;
 
@@ -434,9 +616,7 @@ window.onload = async function()
 
                 Notice( "A new group is added.");
 
-                tabGroups = obj.data.tabGroups;
-
-                CreateTabGroupsHtml();
+                port.postMessage( { msg: bgMsg.GetInfos } );
 
                 break;
             }
@@ -485,10 +665,16 @@ window.onload = async function()
             }
             case bgMsg.ResetAll:
             {
-                if( obj.data.succeeded )
+                if( !obj.data.succeeded )
                 {
-                    window.close();
+                    Notice( `ResetAll failed. ${obj.data.err}` );
+
+                    return;
                 }
+                Notice( `ResetAll succeeded.` );
+
+                port.postMessage( { msg: bgMsg.GetInfos } );
+
                 break;
             }
             case bgMsg.MuteTabGroup:
@@ -548,8 +734,12 @@ window.onload = async function()
 
     port.postMessage( { msg: bgMsg.GetInfos } );
 
+    //add event listeners
     document.getElementById( "btn_addGroup" ).addEventListener( "click", AddGroup );
+
     document.getElementById( "btn_setting").addEventListener( "click", OnSettingClicked );
+
     document.getElementById( "btn_discardOnetime").addEventListener( "click", OnDiscardClicked );
+
     document.getElementById( "btn_resetAll").addEventListener( "click", OnResetAllClicked );
 }

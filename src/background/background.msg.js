@@ -17,4 +17,5 @@ const bgMsg =
     "SetDebug":             0x0E,
     "SetShowAdvancedButtons":0x0F,
     "SetAutoClosePopup":    0x10,
+    "SetTabGroupsOrder":    0x11
 };

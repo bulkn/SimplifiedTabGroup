@@ -1,8 +1,19 @@
 @charset "utf-8";
+
+#wrapper
+{
+    padding: 10px;
+    background: white;
+    height:auto;
+    width:auto;
+}
+
 body
 {
-    padding:5px;
+    padding:0px;
+    margin:0px;
     background: white;
+    overflow-x: hidden;
 }
 
 input, button
@@ -28,6 +39,12 @@ button
 button:hover
 {
     color: blue;
+    font-weight: bold;
+}
+
+table
+{
+    border-collapse: collapse;
 }
 
 #div_notice
@@ -42,4 +59,13 @@ button:hover
 .cText 
 {
     font-size: small;
+}
+
+.cTabGroupMenu
+{
+    position: absolute;
+    background: white;
+    padding:3px;
+    border-radius: 5px;
+    border:thin solid olive;
 }

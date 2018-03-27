@@ -8,6 +8,11 @@ const defaultWindows =
         init: false,
         id: browser.windows.WINDOW_ID_NONE,
         currentGroup: "1",
+        tabGroupsOrder: ["1"],
+        hideNextNewTab:false,
+        nextNewTabGroupId:"",
+        tabIdAliases: { },
+        tabIndexes: { },
         tabGroups:
         {
             "1":
@@ -38,7 +43,7 @@ var windowSessionInfo =
 
 var defaultState = 
 { 
-    currentWindow: ""
+    currentWindow: "",
 };
 
 var state;
@@ -195,97 +200,157 @@ window.onload = async function()
         }
     }
 
-    function SetWindowSessionInfo( windowId = -1, tabGroups = new Object() )
+    function SetWindowSessionInfo( windowId = -1 )
     {
-        return new Promise( async ( resolve, reject ) => {
-            try
+        try
+        {
+            let wid = windowIds[windowId];
+
+            let currentGroup = windows[wid].currentGroup;
+
+            windowSessionInfo = {};
+
+            windowSessionInfo["currentGroup"] = currentGroup;
+
+            windowSessionInfo["groupInfo"] = {};
+
+            windowSessionInfo["tabGroupsOrder"] = windows[wid].tabGroupsOrder;
+
+            for( let groupProp in windows[wid].tabGroups )
             {
-                let currentGroup = windows[windowIds[windowId]].currentGroup;
-
-                windowSessionInfo = {};
-
-                windowSessionInfo["currentGroup"] = currentGroup;
-
-                windowSessionInfo["groupInfo"] = {};
-
-                for( let groupProp in tabGroups )
-                {
-                    windowSessionInfo["groupInfo"][groupProp] = tabGroups[groupProp].name;
-                }
-        
-                await browser.sessions.setWindowValue( windowId, sessionKeys.windowInfo, windowSessionInfo );
-
-                resolve( true );
+                windowSessionInfo["groupInfo"][groupProp] = windows[wid].tabGroups[groupProp].name;
             }
-            catch( e )
-            {
-                reject( e );
-            }
-        } );
+    
+            browser.sessions.setWindowValue( windowId, sessionKeys.windowInfo, windowSessionInfo ).catch( e => { 
+                console.error( `SetWindowSessionInfo: sessions.setWindowValue( )`, e );
+            } );
+        }
+        catch( e )
+        {
+            throw e;
+        }
     }
 
     function AddTabToGroup( windowId = "", groupId = "", tab = new Object() )
     {
-        return new Promise( async ( resolve, reject ) => {
-            try
-            {                
-                windows[windowId].tabGroups[groupId].tabs.push( tab.id );
+        try
+        {                
+            windows[windowId].tabGroups[groupId].tabs.push( tab.id );
 
-                if( tab.audible && tab.width != 0 && tab.height != 0 )
-                {
-                    windows[windowId].tabGroups[groupId].audibleTabs.push( tab.id );
-                }
-        
-                await browser.sessions.setTabValue( tab.id, sessionKeys.tabGroupId, groupId );
-    
-                resolve( true );
-            }
-            catch( e )
+            if( tab.audible && tab.width != 0 && tab.height != 0 )
             {
-                reject( e );
+                windows[windowId].tabGroups[groupId].audibleTabs.push( tab.id );
             }
-        } );
-        
+    
+            windows[windowId].tabIndexes[tab.id.toString()] = groupId;
+
+            browser.sessions.setTabValue( tab.id, sessionKeys.tabGroupId, groupId ).catch( e => { console.error( `AddTabToGroup: setTabValue()`, e ) } );
+        }
+        catch( e )
+        {
+            throw e;
+        }
     }
 
-    function RemoveTabFromGroup( windowId = "", groupId = "", tabId = -1 )
+    function RemoveTabFromGroup( windowId = "", tabId = -1 )
     {
-        return new Promise( async ( resolve, reject ) => { 
-            try
-            {
-                if( windows[windowId].tabGroups[groupId].active == tabId )
-                {
-                    windows[windowId].tabGroups[groupId].active = browser.tabs.TAB_ID_NONE;
-                }
-        
-                let idx = windows[windowId].tabGroups[groupId].tabs.indexOf( tabId );
-        
-                let aidx = windows[windowId].tabGroups[groupId].audibleTabs.indexOf( tabId );
-        
-                if( idx == -1 )
-                {
-                    throw `RemoveTabFromGroup : idx is null. windows[${windowId}].tabGroups[${groupId}].tabs.indexOf( ${tabId} )`;
-                }
-        
-                windows[windowId].tabGroups[groupId].tabs.splice( idx, 1 );
-        
-                if( aidx != -1 )
-                {
-                    windows[windowId].tabGroups[groupId].audibleTabs.splice( aidx, 1 );
-                }
-        
-                if( windows[windowId].tabGroups[groupId].tabs.length == 0 )
-                {
-                    await browser.tabs.create( { active:true, windowId:windows[windowId].id } );
-                }
+        try
+        {
+            dlog( `RemoveTabFromGroup`, windowId, tabId );
 
-                resolve( true );
-            }
-            catch( e )
+            let groupId = windows[windowId].tabIndexes[tabId];
+
+            let aliasIdx = Object.values( windows[windowId].tabIdAliases ).indexOf( tabId );
+
+            if( aliasIdx != -1 )
             {
-                reject( e );
+                let keys = Object.keys( windows[windowId].tabIdAliases );
+
+                delete windows[windowId].tabIdAliases[keys[aliasIdx]];
             }
-        } );
+
+            if( windows[windowId].tabGroups[groupId].active == tabId )
+            {
+                windows[windowId].tabGroups[groupId].active = browser.tabs.TAB_ID_NONE;
+            }
+    
+            let idx = windows[windowId].tabGroups[groupId].tabs.indexOf( tabId );
+    
+            let aidx = windows[windowId].tabGroups[groupId].audibleTabs.indexOf( tabId );
+    
+            if( idx == -1 )
+            {
+                throw `RemoveTabFromGroup : idx is null. windows[${windowId}].tabGroups[${groupId}].tabs.indexOf( ${tabId} )`;
+            }
+    
+            windows[windowId].tabGroups[groupId].tabs.splice( idx, 1 );
+    
+            if( aidx != -1 )
+            {
+                windows[windowId].tabGroups[groupId].audibleTabs.splice( aidx, 1 );
+            }
+
+            delete windows[windowId].tabIndexes[tabId];
+    
+            //create new tab, tabgroup never be empty
+            if( windows[windowId].tabGroups[groupId].tabs.length == 0 )
+            {
+                //happens when user showed hidden tab from urlbar on about:newtab
+                if( groupId != windows[windowId].currentGroup )
+                {
+                    windows[windowId].hideNextNewTab = true;
+
+                    windows[windowId].nextNewTabGroupId = groupId;
+
+                    browser.tabs.create( { active: false, windowId: windows[windowId].id } ).catch( e => { 
+                        console.error( `RemoveTabFromGroup: tabs.create( { active: false, hidden: true, windowId: ${windows[windowId].id} } )`, e );
+                    } );
+                }
+                else
+                {
+                    browser.tabs.create( { active: true, windowId: windows[windowId].id } ).catch( e => { 
+                        console.error( `RemoveTabFromGroup: tabs.create( { active: true, windowId: ${windows[windowId].id} } )`, e );
+                    } );
+                }
+                
+            }
+        }
+        catch( e )
+        {
+            throw e;
+        }
+    }
+
+    function MoveTabInTheSameWindow( windowId = "", groupFrom = "", groupTo = "", tabId = -1 )
+    {
+        try
+        {
+            let idx = windows[windowId].tabGroups[groupFrom].tabs.indexOf( tabId );
+
+            let aIdx = windows[windowId].tabGroups[groupFrom].audibleTabs.indexOf( tabId );
+    
+            windows[windowId].tabGroups[groupFrom].tabs.splice( idx, 1 );
+    
+            windows[windowId].tabGroups[groupTo].tabs.push( tabId );
+    
+            if( aIdx != -1 )
+            {
+                windows[windowId].tabGroups[groupFrom].audibleTabs.splice( aIdx, 1 );
+    
+                windows[windowId].tabGroups[groupTo].audibleTabs.push( tabId );
+            }
+    
+            windows[windowId].tabIndexes[tabId] = groupTo;
+
+            browser.sessions.setTabValue( tabId, sessionKeys.tabGroupId, groupTo ).catch( e => {
+                console.error( `MoveTabInTheSameWindow: setTabValue()`, e );
+            } );
+        }
+        catch( e )
+        {
+            throw e;
+        }
+        
     }
 
     function Initialize( )
@@ -328,14 +393,14 @@ window.onload = async function()
                             await browser.sessions.setTabValue( tab.id, sessionKeys.tabActive, "1" );
                         }
         
-                        await AddTabToGroup( wid, "1", tab );
+                        AddTabToGroup( wid, "1", tab );
         
                         await browser.sessions.setTabValue( tab.id, sessionKeys.tabGroupId, "1" );
                     }
-        
+
                     windows[wid].init = true;
         
-                    await SetWindowSessionInfo( window.id, windows[wid].tabGroups );
+                    await SetWindowSessionInfo( window.id );
         
                     windowId++;
                 }
@@ -387,6 +452,10 @@ window.onload = async function()
                 {
                     windows[window].init = false;
 
+                    windows[window].tabIdAliases = {};
+
+                    windows[window].tabIndexes = {};
+
                     windowsUpdated = SyncProperty( defaultWindows["template"], windows[window] );
                 }
         
@@ -425,7 +494,7 @@ window.onload = async function()
                             throw ["groupId is undefined", tab, windowId, groupId ]; 
                         }
 
-                        await AddTabToGroup( windowId, groupId, tab );
+                        AddTabToGroup( windowId, groupId, tab );
         
                         if( windows[windowId].currentGroup != groupId )
                         {
@@ -450,10 +519,15 @@ window.onload = async function()
                     await storage.set( { windows } );
                 }
         
-                //restore state
+                //restore/update state
                 data = await storage.get( "state" );
         
                 state = data.state;
+
+                if( SyncProperty( defaultState, state ) )
+                {
+                    await storage.set( { state } );
+                }
         
                 let cWindow = await browser.windows.getCurrent();
         
@@ -485,7 +559,7 @@ window.onload = async function()
                 await browser.menus.create( {
                     id: parentId,
                     title: "Move to",
-                    contexts: ["tab", "page"]
+                    contexts: ["tab"]
                 } );
     
                 windowsKeys = Object.keys( windows );
@@ -493,11 +567,21 @@ window.onload = async function()
                 if( windowsKeys.length == 1 )
                 {
                     let wid = windowsKeys[0];
-                    let tabGroupsKeys = Object.keys( windows[wid].tabGroups );
-    
-                    for( let gid of tabGroupsKeys )
+
+                    for( let gid of windows[wid].tabGroupsOrder )
                     {
-                        await browser.menus.create( { parentId: parentId, id: `stg_menu${wid}_${gid}`, title: windows[wid].tabGroups[gid].name, contexts: ["tab", "page"] } );
+                        let title = "";
+
+                        if( gid == windows[wid].currentGroup )
+                        {
+                            title = "(c) " + windows[wid].tabGroups[gid].name;
+                        }
+                        else
+                        {
+                            title = "    " + windows[wid].tabGroups[gid].name
+                        }
+
+                        await browser.menus.create( { parentId: parentId, id: `stg_menu${wid}_${gid}`, title: `${title}`, contexts: ["tab"] } );
                     }
                 }
                 else
@@ -506,13 +590,24 @@ window.onload = async function()
                     {
                         let windowMenuId = `stg_menuWindow${wid}`;
 
-                        await browser.menus.create( { parentId: parentId, id:windowMenuId, title: `Window ${wid}`, contexts: ["tab", "page"] } )
+                        await browser.menus.create( { parentId: parentId, id:windowMenuId, title: `Window ${wid}`, contexts: ["tab"] } )
                         
                         let tabGroupsKeys = Object.keys( windows[wid].tabGroups );
     
-                        for( let gid of tabGroupsKeys )
+                        for( let gid of windows[wid].tabGroupsOrder )
                         {
-                            browser.menus.create( { parentId: windowMenuId, id: `stg_menu${wid}_${gid}`, title: windows[wid].tabGroups[gid].name, contexts: ["tab", "page"] } );
+                            let title = "";
+
+                            if( gid == windows[wid].currentGroup )
+                            {
+                                title = "(c) " + windows[wid].tabGroups[gid].name;
+                            }
+                            else
+                            {
+                                title = "    " + windows[wid].tabGroups[gid].name
+                            }
+
+                            await browser.menus.create( { parentId: windowMenuId, id: `stg_menu${wid}_${gid}`, title: `${title}`, contexts: ["tab"] } );
                         }
                     }
                 }
@@ -530,86 +625,109 @@ window.onload = async function()
 
     function SetCurrentGroup( targetGroupId  = "" )
     {
-        return new Promise( async ( resolve, reject ) => {
-            try
+        try
+        {
+            let windowId = state.currentWindow;
+
+            if( windows[windowId].tabGroups[targetGroupId] == undefined )
             {
-                let windowId = state.currentWindow;
+                throw `windows[${windowId}].tabGroups[${targetGroupId}] is undefined. windows:${JSON.stringify( windows )}`;
 
-                if( windows[windowId].tabGroups[targetGroupId] == undefined )
-                {
-                    throw `windows[${windowId}].tabGroups[${targetGroupId}] is undefined. windows:${JSON.stringify( windows )}`;
-
-                    return;
-                }
-
-                let oldGroupId = windows[windowId].currentGroup;
-
-                windows[windowId].currentGroup = targetGroupId;
-
-                await storage.set( { windows } );
-
-                //show tabs, set active tab
-                await browser.tabs.show( windows[windowId].tabGroups[targetGroupId].tabs );
-
-                if( windows[windowId].tabGroups[targetGroupId].active == browser.tabs.TAB_ID_NONE )
-                {
-                    await browser.tabs.update( windows[windowId].tabGroups[targetGroupId].tabs[0], { active:true } );
-                }
-                else
-                {
-                    await browser.tabs.update( windows[windowId].tabGroups[targetGroupId].active, { active:true } );
-                }
-
-                //unmute
-                if( windows[windowId].tabGroups[targetGroupId].muted )
-                {
-                    for( let atab of windows[windowId].tabGroups[targetGroupId].audibleTabs )
-                    {
-                        await browser.tabs.update( atab, { muted:false } );
-                    }
-
-                    windows[windowId].tabGroups[targetGroupId].muted = false;
-                }
-
-                await browser.tabs.hide( windows[windowId].tabGroups[oldGroupId].tabs );
-
-                await SetWindowSessionInfo( windows[windowId].id, windows[windowId].tabGroups );
-
-                //discard tabs
-                if( settings.discardWhenHidden && !windows[windowId].tabGroups[oldGroupId].noDiscard )
-                {
-                    await browser.tabs.discard( windows[windowId].tabGroups[oldGroupId].tabs );
-
-                    windows[windowId].tabGroups[oldGroupId].audibleTabs = [];
-
-                    windows[windowId].tabGroups[oldGroupId].muted = false;
-                }
-                //mute tabs
-                else if( settings.muteWhenHidden )
-                {
-                    for( let tabid of windows[windowId].tabGroups[oldGroupId].audibleTabs )
-                    {
-                        await browser.tabs.update( tabid, { muted:true } );
-                    }
-
-                    if( windows[windowId].tabGroups[oldGroupId].audibleTabs.length != 0 )
-                    {
-                        windows[windowId].tabGroups[oldGroupId].muted = true;
-                    }
-
-                    for( let tabid of windows[windowId].tabGroups[targetGroupId].tabs )
-                    {
-                        await browser.tabs.update( tabid, { muted:false } );
-                    }
-                }
-
-                resolve( true );
+                return;
             }
-            catch( e )
+
+            let oldGroupId = windows[windowId].currentGroup;
+
+            windows[windowId].currentGroup = targetGroupId;
+
+            //show tabs, set active tab
+            browser.tabs.show( windows[windowId].tabGroups[targetGroupId].tabs );
+
+            if( windows[windowId].tabGroups[targetGroupId].active == browser.tabs.TAB_ID_NONE )
             {
-                reject( e );
+                browser.tabs.update( windows[windowId].tabGroups[targetGroupId].tabs[0], { active:true } ).catch( e => { 
+                    console.error( `SetCurrentGroup: tabs.update( ${windows[windowId].tabGroups[targetGroupId].tabs[0]}, { active:true } )`, e );
+                } );
             }
-        } );
+            else
+            {
+                browser.tabs.update( windows[windowId].tabGroups[targetGroupId].active, { active:true } ).catch( e => { 
+                    console.error( `SetCurrentGroup: tabs.update( ${windows[windowId].tabGroups[targetGroupId].active}, { active:true } )`, e );
+                } );
+            }
+
+            //unmute
+            if( windows[windowId].tabGroups[targetGroupId].muted )
+            {
+                for( let atab of windows[windowId].tabGroups[targetGroupId].audibleTabs )
+                {
+                    browser.tabs.update( atab, { muted:false } ).catch( e => { 
+                        console.error( `SetCurrentGroup: tabs.update( ${atab}, { muted:false } )`, e );
+                    } );
+                }
+
+                windows[windowId].tabGroups[targetGroupId].muted = false;
+            }
+
+            for( let tab of windows[windowId].tabGroups[oldGroupId].tabs )
+            {
+                browser.tabs.hide( tab ).catch( e => {
+                    //happens when user showed the hidden tab from urlbar on about:newtab. hmm
+                    console.error( `SetCurrentGroup: tabs.hide( )`, e );
+                } );
+            }
+
+            SetWindowSessionInfo( windows[windowId].id );
+
+            //discard tabs
+            if( settings.discardWhenHidden && !windows[windowId].tabGroups[oldGroupId].noDiscard )
+            {
+                browser.tabs.discard( windows[windowId].tabGroups[oldGroupId].tabs ).catch( e => {
+                    //happens when user showed the hidden tab from urlbar on about:newtab. hmm
+                    console.error( `SetCurrentGroup: tabs.discard( )`, e );
+                } );
+
+                windows[windowId].tabGroups[oldGroupId].audibleTabs = [];
+
+                windows[windowId].tabGroups[oldGroupId].muted = false;
+            }
+
+            //mute tabs
+            else if( settings.muteWhenHidden )
+            {
+                for( let tabid of windows[windowId].tabGroups[oldGroupId].audibleTabs )
+                {
+                    browser.tabs.update( tabid, { muted:true } ).catch( e => { 
+                        console.error( `SetCurrentGroup: tabs.update( )`, e );
+                    } );
+                }
+
+                if( windows[windowId].tabGroups[oldGroupId].audibleTabs.length != 0 )
+                {
+                    windows[windowId].tabGroups[oldGroupId].muted = true;
+                }
+
+                for( let tabid of windows[windowId].tabGroups[targetGroupId].tabs )
+                {
+                    browser.tabs.update( tabid, { muted:false } ).catch( e => { 
+                        console.error( `SetCurrentGroup: tabs.update( )`, e );
+                    } );
+                }
+            }
+
+            //recreate menus
+            RecreateMenus().catch( e => { 
+                console.error( `SetCurrentGroup: RecreateMenus()`, e );
+            } );
+
+            storage.set( { windows } ).catch( e => { 
+                console.error( `SetCurrentGroup: storage.set( { windows } )`, e );
+            } );
+        }
+        catch( e )
+        {
+            throw e;
+        }
     }
 
     //event listner functions
@@ -626,10 +744,6 @@ window.onload = async function()
                 return;
             }
 
-            let currentWindowId = state.currentWindow;
-
-            let currentGroupId = windows[currentWindowId].currentGroup;
-
             let windowIdFrom = windowIds[tab.windowId];
     
             let groupFrom = windows[windowIdFrom].currentGroup;
@@ -645,21 +759,45 @@ window.onload = async function()
                 return;
             }
 
-            let groupIdx = windows[windowIdFrom].tabGroups[groupFrom].tabs.indexOf( tab.id );
+            let tabIdAlias = windows[windowIdFrom].tabIdAliases[tab.id.toString()];
 
-            let audibleIdx = windows[windowIdFrom].tabGroups[groupFrom].audibleTabs.indexOf( tab.id );
+            let groupIdx;
+
+            let audibleIdx;
+
+            let tabId;
+
+            if( tabIdAlias != undefined )
+            {
+                groupIdx = windows[windowIdFrom].tabGroups[groupFrom].tabs.indexOf( tabIdAlias );
+
+                audibleIdx = windows[windowIdFrom].tabGroups[groupFrom].audibleTabs.indexOf( tabIdAlias );
+
+                tabId = tabIdAlias;
+            }
+            else
+            {
+                groupIdx = windows[windowIdFrom].tabGroups[groupFrom].tabs.indexOf( tab.id );
+
+                audibleIdx = windows[windowIdFrom].tabGroups[groupFrom].audibleTabs.indexOf( tab.id );
+
+                tabId = tab.id;
+            }
 
             if( groupIdx == -1 )
             {
-                throw `MenuOnClicked : groupIdx is -1, windowIdFrom: ${windowIdFrom}, groupFrom: ${groupFrom}, tabId: ${tab.id}, windows:${JSON.stringify( windows )}`;
+                throw `MenuOnClicked : groupIdx is -1, windowIdFrom: ${windowIdFrom}, groupFrom: ${groupFrom}, tabId: ${tab.id} }`;
             }
 
+            //set new active tab to hide tab
             if( tab.active )
             {
+                //create new tab if current group length is 1
                 if( windows[windowIdFrom].tabGroups[groupFrom].tabs.length == 1 )
                 {
                     let newTab = await browser.tabs.create( { windowId:windows[windowIdFrom].id, active:true } );
                 }
+                //set active to next tab;
                 else
                 {
                     let nextActiveTab = groupIdx + 1;
@@ -673,43 +811,25 @@ window.onload = async function()
                 }
             }
 
-            windows[windowIdFrom].tabGroups[groupFrom].tabs.splice( groupIdx, 1 );
-
-            windows[windowIdTo].tabGroups[groupTo].tabs.push( tab.id );
-
-            if( audibleIdx != -1 )
-            {
-                windows[windowIdFrom].tabGroups[groupFrom].audibleTabs.splice( audibleIdx, 1 );
-
-                windows[windowIdTo].tabGroups[groupTo].audibleTabs.push( tab.id );
-            }
-
             //move tab between different windows
             if( windowIdFrom != windowIdTo )
             {
-                browser.tabs.onDetached.removeListener( TabDetached );
-
-                browser.tabs.onAttached.removeListener( TabAttached );
-
-                await browser.tabs.move( tab.id, { windowId:windows[windowIdTo].id, index:-1 } );
-
-                browser.tabs.onDetached.addListener( TabDetached );
-
-                browser.tabs.onAttached.addListener( TabAttached );
-
-                await browser.sessions.setTabValue( tab.id, sessionKeys.tabGroupId, groupTo );
+                await browser.tabs.move( tabId, { windowId:windows[windowIdTo].id, index:-1 } );
 
                 if( windows[windowIdTo].currentGroup != groupTo )
                 {
-                    browser.tabs.hide( tab.id );
+                    //onAttach sets group to window's currentGroup so.
+                    MoveTabInTheSameWindow( windowIdTo, windows[windowIdTo].currentGroup, groupTo, tabId );
+
+                    await browser.tabs.hide( tabId );
                 }
             }
             //just hide tab
             else
             {
-                await browser.sessions.setTabValue( tab.id, sessionKeys.tabGroupId, groupTo );
+                MoveTabInTheSameWindow( windowIdTo, groupFrom, groupTo, tabId );
 
-                await browser.tabs.hide( tab.id );
+                await browser.tabs.hide( tabId );
             }
 
             //discard tab
@@ -728,7 +848,7 @@ window.onload = async function()
         }
     }
 
-    async function TabRemoved( tabId, info )
+    function TabRemoved( tabId, info )
     {
         try
         {
@@ -741,9 +861,9 @@ window.onload = async function()
 
             let wid = windowIds[info.windowId.toString()];
     
-            await RemoveTabFromGroup( wid, windows[wid].currentGroup, tabId );
+            RemoveTabFromGroup( wid, tabId );
     
-            await storage.set( { windows } );
+            storage.set( { windows } ).catch( e => { console.error( `TabRemoved : storage.set( { windows } )`, e ) } );
         }
         catch( e )
         {
@@ -751,7 +871,7 @@ window.onload = async function()
         }
     }
 
-    async function TabDetached( tabId, info )
+    function TabDetached( tabId, info )
     {
         try
         {
@@ -761,7 +881,7 @@ window.onload = async function()
 
             if( wid == undefined )
             {
-                throw `TabDatached : wid is undefined. windowId:${info.oldWindowId}, windows:${JSON.stringify( windows )}`;
+                throw `TabDatached : wid is undefined. windowId:${info.oldWindowId}`;
             }
 
             let count = 0;
@@ -777,14 +897,14 @@ window.onload = async function()
 
             if( count == 1 )
             {
-                dlog( `TabDetached : aborted. ( window is closing )` );
+                dlog( `TabDetached`, `aborted`, `window is closing` );
 
                 return;
             }
 
-            await RemoveTabFromGroup( wid, windows[wid].currentGroup, tabId );
+            RemoveTabFromGroup( wid, tabId );
 
-            await storage.set( { windows } );
+            storage.set( { windows } ).catch( e => { console.error( `TabDetached : storage.set( { windows } )`, e ); } );
         }
         catch( e )
         {
@@ -792,7 +912,7 @@ window.onload = async function()
         }
     }
 
-    async function TabAttached( tabId, info )
+    function TabAttached( tabId, info )
     {
         try
         {
@@ -807,34 +927,24 @@ window.onload = async function()
                 return;
             }
 
-            let tab = await browser.tabs.get( tabId );
-
-            let actualTabId = tab.id;
+            let tab = { id: tabId };
 
             let gid = windows[wid].currentGroup;
 
-            //HACK: this happens when detach and attach the same tab between windows. and it causes bugs. i don't know how to fix these bugs, so duplicate tab and remove original for now. 
-            if( tabId != actualTabId )
-            {
-                dlog( `TabAttached : missmatch ${tabId}, ${actualTabId}` );
+            browser.tabs.get( tabId ).then( aTab => {
+                if( tabId != aTab.id )
+                {
+                    windows[wid].tabIdAliases[aTab.id] = tabId;
+                }
+                if( aTab.audible )
+                {
+                    windows[wid].tabGroups[gid].audibleTabs.push( tabId );
+                }
+            } ).catch( e => { console.error( `TabAttached: tabs.get()`, e ); } );
+            
+            AddTabToGroup( wid, gid, tab );
 
-                let duplicatedTab = await browser.tabs.duplicate( tabId );
-
-                //about:* urls refuse setTabValue in OnCreate. i don't why.
-                await browser.sessions.setTabValue( duplicatedTab.id, sessionKeys.tabGroupId, gid );
-
-                browser.tabs.onRemoved.removeListener( TabRemoved );
-
-                await browser.tabs.remove( tabId );
-
-                browser.tabs.onRemoved.addListener( TabRemoved );
-            }
-            else
-            {
-                await AddTabToGroup( wid, gid, tab );
-            }
-
-            await storage.set( { windows } );
+            storage.set( { windows } ).catch( e => { console.error( `TabAttached: storage.set( { windows } )`, e ); } );
         }
         catch( e )
         {
@@ -842,24 +952,36 @@ window.onload = async function()
         }
     }
 
-    async function TabCreated( tab )
+    function TabCreated( tab )
     {
         try
         {
             dlog( 'TabCreated', tab );
 
-            let windowId = windowIds[tab.windowId.toString()];
+            let wid = windowIds[tab.windowId.toString()];
 
-            if( windowId == undefined || !windows[windowId].init)
+            if( wid == undefined || !windows[wid].init)
             {
                 dlog( `TabCreate : aborted` );
 
                 return;
             }
 
-            await AddTabToGroup( windowId, windows[windowId].currentGroup, tab );
+            //happens when user showed hidden tab from urlbar on about:newtab
+            if( windows[wid].hideNextNewTab )
+            {
+                AddTabToGroup( wid, windows[wid].nextNewTabGroupId, tab );
+
+                browser.tabs.hide( tab.id ).catch( e => { 
+                    console.error( `TabCreated: tabs.hide( ${tab.id} )`, e );
+                } );
+            }
+            else
+            {
+                AddTabToGroup( wid, windows[wid].currentGroup, tab );
+            }
             
-            await storage.set( { windows } );
+            storage.set( { windows } ).catch( e => { console.error( `TabCreated : storage.set( { windows } )`, e ) } );
         }
         catch( e )
         {
@@ -867,11 +989,11 @@ window.onload = async function()
         }
     }
 
-    async function TabActivated( info ) //info = { tabId, windowId }
+    function TabActivated( info ) //info = { tabId, windowId }
     {
         try
         {
-            dlog( 'TabActivated', info );
+            dlog( 'TabActivated', info.tabId, info.windowId );
 
             let wid = windowIds[info.windowId.toString()];
 
@@ -882,53 +1004,57 @@ window.onload = async function()
                 return;
             }
 
-            let gid = await browser.sessions.getTabValue( info.tabId, sessionKeys.tabGroupId );
+            let gid = windows[wid].tabIndexes[info.tabId];
 
-            //happens when attaching/detaching tab
-            if( gid == undefined )
+            let currentGroupChange = false;
+
+            //unwanted showed tab
+            if( windows[wid].currentGroup != gid )
             {
-                let idx = -1;
-
-                idx = windows[wid].tabGroups[windows[wid].currentGroup].tabs.indexOf( info.tabId );
-
-                if( idx == -1 )
+                //happens when user removed the last tab of the currentGroup
+                if( windows[wid].tabGroups[windows[wid].currentGroup].tabs.length == 0 )
                 {
-                    dlog( `TabActivated : aborted.` );
+                    dlog( `TabActivated : hiding unwanted tab.`, `tabid:${info.tabId}`, `currentGroup:${windows[wid].currentGroup}`, `gid:${gid}` );
+
+                    browser.tabs.hide( info.tabId ).catch( e => { console.error( `TabActivated: tabs.hide( ${info.tabId} )`, e ); } );
 
                     return;
                 }
-                //attaching tab
+                //happens when user showed the hidden tab from urlbar
                 else
                 {
-                    dlog( `TabActivated : get gid from idx.` );
-                    gid = windows[wid].currentGroup;
+                    dlog( `TabActivated : change current group.`, `tabid:${info.tabId}`, `currentGroup:${windows[wid].currentGroup}`, `gid:${gid}` );
+
+                    currentGroupChange = true;
                 }
             }
 
-            //unwanted auto showed tab
-            if( windows[wid].currentGroup != gid )
-            {
-                dlog( `TabActivated : hiding unwanted tab. gid:${gid}` );
-
-                await browser.tabs.hide( info.tabId );
-
-                return;
-            }
-
+            //change active tab of target group
             if( windows[wid].tabGroups[gid].active == browser.tabs.TAB_ID_NONE )
             {
-                await browser.sessions.setTabValue( info.tabId, sessionKeys.tabActive, "1" );
+                browser.sessions.setTabValue( info.tabId, sessionKeys.tabActive, "1" ).catch( e => { 
+                    console.error( `TabActivated: sessions.setTabValue( )`, e ); 
+                } );
             }
             else if( windows[wid].tabGroups[gid].active != info.tabId )
             {
-                await browser.sessions.removeTabValue( windows[wid].tabGroups[gid].active, sessionKeys.tabActive );
+                browser.sessions.removeTabValue( windows[wid].tabGroups[gid].active, sessionKeys.tabActive ).catch( e => {
+                    console.error( `TabActivated: sessions.removeTabValue( )`, e ); 
+                } );
 
-                await browser.sessions.setTabValue( info.tabId, sessionKeys.tabActive, "1" );
+                browser.sessions.setTabValue( info.tabId, sessionKeys.tabActive, "1" ).catch( e => {
+                    console.error( `TabActivated: sessions.setTabValue( )`, e ); 
+                } );
             }
 
             windows[wid].tabGroups[gid].active = info.tabId;
 
-            await storage.set( { windows } );
+            if( currentGroupChange )
+            {
+                SetCurrentGroup( gid );
+            }
+
+            storage.set( { windows } ).catch( e => { console.error( `TabActivated: storage.set( { windows } )`, e ); } );
         }
         catch( e )
         {
@@ -936,7 +1062,7 @@ window.onload = async function()
         }
     }
 
-    async function TabUpdated( tabId, info, tab )
+    function TabUpdated( tabId, info, tab )
     {
         try
         {
@@ -955,7 +1081,8 @@ window.onload = async function()
                 return;
             }
 
-            let gid = await browser.sessions.getTabValue( tabId, "groupId" );
+            //let gid = await browser.sessions.getTabValue( tabId, "groupId" );
+            let gid = windows[wid].tabIndexes[tab.id.toString()];
 
             if( !gid )
             {
@@ -1009,7 +1136,7 @@ window.onload = async function()
         }
     }
 
-    function WindowFocusChanged( windowId )
+    async function WindowFocusChanged( windowId )
     {
         try
         {
@@ -1024,6 +1151,8 @@ window.onload = async function()
 
             if( state.currentWindow == undefined )
             {
+                let window = await browser.windows.get( windowId );
+
                 return WindowFocusChanged( windowId );
             }
         }
@@ -1049,8 +1178,9 @@ window.onload = async function()
 
             let restoredId = await browser.sessions.getWindowValue( windowObj.id, sessionKeys.windowId );
 
+            
             if( restoredId != undefined )
-            {             
+            {            
                 let sessionInfo = await browser.sessions.getWindowValue( windowObj.id, sessionKeys.windowInfo );
 
                 for( let restoredGroupId in sessionInfo.groupInfo )
@@ -1061,6 +1191,8 @@ window.onload = async function()
                 }
 
                 windows[newKey].currentGroup = sessionInfo.currentGroup;
+
+                windows[newKey].tabGroupsOrder = sessionInfo.tabGroupsOrder;
                 
                 let tabs = await browser.tabs.query( { windowId: windowObj.id } );
 
@@ -1075,7 +1207,7 @@ window.onload = async function()
                         windows[newKey].tabGroups[groupId].active = tab.id;
                     }
 
-                    await AddTabToGroup( newKey, groupId, tab );
+                    AddTabToGroup( newKey, groupId, tab );
                 }
             }
             else
@@ -1093,10 +1225,10 @@ window.onload = async function()
                         await browser.sessions.setTabValue( tab.id, sessionKeys.tabActive, "1" );
                     }
 
-                    await AddTabToGroup( newKey, "1", tab );
+                    AddTabToGroup( newKey, "1", tab );
                 }
 
-                await SetWindowSessionInfo( windowObj.id, windows[newKey].tabGroups );
+                await SetWindowSessionInfo( windowObj.id );
             }
 
             windows[newKey].init = true;
@@ -1200,9 +1332,15 @@ window.onload = async function()
                     {
                         let wid = state.currentWindow;
 
+                        let clientState = 
+                        {
+                            currentGroup: windows[wid].currentGroup,
+                            tabGroupsOrder: windows[wid].tabGroupsOrder
+                        }
+
                         if( client )
                         {
-                            client.postMessage( { msg: bgMsg.GetInfos, data: { succeeded: true, settings: settings, currentGroup: windows[wid].currentGroup, tabGroups: windows[wid].tabGroups } } );
+                            client.postMessage( { msg: bgMsg.GetInfos, data: { succeeded: true, settings: settings, state: clientState, tabGroups: windows[wid].tabGroups } } );
                         }
                     }
                     catch( e )
@@ -1240,12 +1378,14 @@ window.onload = async function()
                         await browser.tabs.hide( newTab.id );
 
                         windows[wid].currentGroup = currentGroup;
-    
-                        await storage.set( { windows } );
 
-                        await SetWindowSessionInfo( windows[wid].id, windows[wid].tabGroups );
-    
+                        await SetWindowSessionInfo( windows[wid].id );
+
+                        windows[wid].tabGroupsOrder.push( newGroupId );
+
                         await RecreateMenus();
+
+                        await storage.set( { windows } );
     
                         if( client )
                         {
@@ -1328,7 +1468,7 @@ window.onload = async function()
     
                         storage.set( { windows } );
 
-                        await SetWindowSessionInfo( windows[targetWindowId].id, windows[targetWindowId].tabGroups );
+                        await SetWindowSessionInfo( windows[targetWindowId].id );
     
                         await RecreateMenus();
     
@@ -1377,11 +1517,6 @@ window.onload = async function()
                             }
 
                             await SetCurrentGroup( nextGroupId );
-
-                            if( client )
-                            {
-                                client.postMessage( { msg: bgMsg.SetCurrentGroup, data: { succeeded: true, id: nextGroupId } } );
-                            }
                         }
 
                         browser.tabs.onRemoved.removeListener( TabRemoved );
@@ -1394,9 +1529,21 @@ window.onload = async function()
 
                         await storage.set( { windows } );
 
-                        await SetWindowSessionInfo( windows[targetWindowId].id, windows[targetWindowId].tabGroups );
+                        await SetWindowSessionInfo( windows[targetWindowId].id );
+
+                        //set tabGroupsOrder
+                        let orderIdx = windows[targetWindowId].tabGroupsOrder.indexOf( targetGroupId );
+
+                        if( orderIdx == -1 )
+                        {
+                            throw [ `orderIdx is -1`, windows[targetWindowId].tabGroupsOrder ];
+                        }
+
+                        windows[targetWindowId].tabGroupsOrder.splice( orderIdx, 1 );
 
                         await RecreateMenus();
+
+                        await storage.set( { windows } );
 
                         if( client )
                         {
@@ -1532,6 +1679,24 @@ window.onload = async function()
                         console.error( e );
                     }
 
+                    break;
+                }
+                case bgMsg.SetTabGroupsOrder:
+                {
+                    try
+                    {
+                        let wid = state.currentWindow;
+
+                        windows[wid].tabGroupsOrder = obj.data;
+
+                        SetWindowSessionInfo( windows[wid].id );
+
+                        await storage.set( { windows } );
+                    }
+                    catch( e )
+                    {
+                        console.error( e );
+                    }
                     break;
                 }
                 //setting
