@@ -1691,6 +1691,8 @@ window.onload = async function()
 
                         SetWindowSessionInfo( windows[wid].id );
 
+                        await RecreateMenus();
+
                         await storage.set( { windows } );
                     }
                     catch( e )

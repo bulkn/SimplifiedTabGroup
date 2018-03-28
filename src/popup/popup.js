@@ -286,6 +286,11 @@ function CreateTabGroupsHtml()
     }
 
     RefreshTabGroupList();
+
+    if( settings.showAdvancedButtons )
+    {
+        document.getElementById( "div_advencedButtons" ).className = "";
+    }
     
     initDone = true;
 }
