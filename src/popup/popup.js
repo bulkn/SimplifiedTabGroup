@@ -1,4 +1,3 @@
-//TODO: pager for tabGroups
 //#region global variables
 var tabGroups = 
 {
@@ -13,11 +12,18 @@ var tabGroups =
     }
 }
 
+var tabGroupsPager = 
+{
+    max:10,
+    current:0,
+};
+
 var state = 
 { 
     currentGroup:"",
     tabGroupsOrder:[]
 };
+
 var settings = 
 {
     init:false,
@@ -32,7 +38,6 @@ var settings =
 
 var port;
 //#endregion
-
 
 function dlog( ...args )
 {
@@ -220,11 +225,11 @@ function MakeTabGroupRow( name = "", id = "", currentGroup = false )
 
     if( currentGroup )
     {
-        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" tabindex="2">&#8594;</button></td>`;
+        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" style="font-weight:bold;font-size:larger;" tabindex="2">&#9656;</button></td>`;
     }
     else
     {
-        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" tabindex="2">&#9675;</button></td>`;
+        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" style="font-weight:bold;font-size:larger; tabindex="2">&#9675;</button></td>`;
     }
     
     ret += `<td><input type="text" class="cGroupNameInput" id="groupID_${id}" tabindex="1"></td>`;
@@ -250,7 +255,7 @@ function MakeTabGroupRow( name = "", id = "", currentGroup = false )
     }
 
     ret += `
-        <td>[${tabGroups[id].tabs.length == 0 ? 1 : tabGroups[id].tabs.length }]</td>
+        <td><span class="cText">[${tabGroups[id].tabs.length == 0 ? 1 : tabGroups[id].tabs.length }]</span></td>
         <td><button style="font-weight:bold;" id="groupMenuID_${id}" tabindex="3" class="cTabGroupMenuButton" >&#8943;</button></td> 
     `;
 
@@ -280,10 +285,23 @@ function CreateTabGroupsHtml()
 
     div.innerHTML = "";
 
-    for( let gid of state.tabGroupsOrder )
+    let count = 0;
+
+    let initialIdx = tabGroupsPager.current * tabGroupsPager.max;
+
+    for( let i = initialIdx; i < state.tabGroupsOrder.length; i++ )
     {
-        MakeRow( div, gid );
+        count++;
+
+        MakeRow( div, state.tabGroupsOrder[i] );
+
+        if( count == tabGroupsPager.max )
+        {
+            break;
+        }
     }
+
+    MakePagerArea();
 
     RefreshTabGroupList();
 
@@ -294,6 +312,91 @@ function CreateTabGroupsHtml()
     
     initDone = true;
 }
+//#endregion
+
+//#region pager functions/listners
+function MakePagerArea()
+{
+    let pages = Math.ceil( state.tabGroupsOrder.length / tabGroupsPager.max );
+
+    if( pages > 1 )
+    {
+        let naviArea = document.getElementById( "div_tabGroupListNavi" );
+
+        let html = ``;
+
+        if( tabGroupsPager.current > 0 )
+        {
+            html += `<button style="font-size:x-large;" id="pagerPrev">&#9666;</button>`;    
+        }
+
+        for( let i = 0; i < pages; i++ )
+        {
+            if( tabGroupsPager.current == i )
+            {
+                html += `<button style="font-weight:bold;">[${i}]</button> `;
+            }
+            else
+            {
+                html += `<button class="cPagerNumber" data-pagerNumber="${i}">[${i}]</button> `;
+            }   
+        }
+
+        if( tabGroupsPager.current < ( pages - 1 ) )
+        {
+            html += `<button style="font-size:x-large;" id="pagerNext">&#9656;</button>`;
+        }
+
+        naviArea.innerHTML = html;
+    }
+
+    SetPagerListeners();
+}
+
+function SetPagerListeners()
+{
+    let collection = document.getElementsByClassName( "cPagerNumber" );
+
+    for( let elem of collection )
+    {
+        elem.addEventListener( "click", PagerNumblerOnClicked );
+    }
+
+    let next = document.getElementById( "pagerNext" );
+
+    let prev = document.getElementById( "pagerPrev");
+
+    if( next )
+    {
+        next.addEventListener( "click", PagerNextOnClicked );
+    } 
+
+    if( prev )
+    {
+        prev.addEventListener( "click", PagerPreviousOnClicked );
+    }
+}
+function PagerNumblerOnClicked( ev ) 
+{
+    let data = ev.target.getAttribute( "data-pagerNumber" );
+
+    tabGroupsPager.current = Number( data );
+
+    CreateTabGroupsHtml();
+}
+function PagerNextOnClicked( ev )
+{
+    tabGroupsPager.current++;
+
+    CreateTabGroupsHtml();
+}
+function PagerPreviousOnClicked( ev )
+{
+    tabGroupsPager.current--;
+
+    CreateTabGroupsHtml();
+}
+
 //#endregion
 
 //#region setting functions
@@ -330,19 +433,27 @@ function OnSettingClicked()
     cb_settingAutoClosePopup.checked = settings.autoClosePopup;
 
     cb_discardWhenHidden.addEventListener( "change", ev => {
-        port.postMessage( { msg: bgMsg.SetDiscardWhenHidden, data: cb_discardWhenHidden.checked } );
+        port.postMessage( { msg: bgMsg.SetDiscardWhenHidden, data: ev.target.checked } );
+
+        settings.discardWhenHidden = ev.target.checked;
     } );
 
     cb_muteWhenHidden.addEventListener( "change", ev => { 
-        port.postMessage( { msg: bgMsg.SetMuteWhenHidden, data: cb_muteWhenHidden.checked } );
+        port.postMessage( { msg: bgMsg.SetMuteWhenHidden, data: ev.target.checked } );
+
+        settings.muteWhenHidden = ev.target.checked;
     } );
 
     cb_debug.addEventListener( "change", ev => {
-        port.postMessage( { msg: bgMsg.SetDebug, data: cb_debug.checked } );
+        port.postMessage( { msg: bgMsg.SetDebug, data: ev.target.checked } );
+
+        settings.debug = ev.target.checked;
     } );
 
     cb_showAdvancedButtons.addEventListener( "change", ev => {  
-        port.postMessage( { msg: bgMsg.SetShowAdvancedButtons, data: cb_showAdvancedButtons.checked } );
+        port.postMessage( { msg: bgMsg.SetShowAdvancedButtons, data: ev.target.checked } );
+
+        settings.showAdvancedButtons = ev.target.checked;
 
         let div = document.getElementById( "div_advencedButtons" );
 
@@ -357,9 +468,11 @@ function OnSettingClicked()
     } );
 
     cb_settingAutoClosePopup.addEventListener( "change", ev => { 
-        port.postMessage( { msg: bgMsg.SetAutoClosePopup, data: cb_settingAutoClosePopup.checked } );
+        port.postMessage( { msg: bgMsg.SetAutoClosePopup, data: ev.target.checked } );
+
+        settings.autoClosePopup = ev.target.checked;
         
-        SetAutoClose( cb_settingAutoClosePopup.checked );
+        SetAutoClose( ev.target.checked );
     } );
 
     elem.className = "";
@@ -533,7 +646,7 @@ function AutoCloseResizeListner( ev )
 
     this.setTimeout( ev => { 
         document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
-    }, 5 );
+    }, 100 );
 }
 
 function SetAutoClose( bClose = false )

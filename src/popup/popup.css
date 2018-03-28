@@ -51,6 +51,16 @@ table
 {
     font-size:small;
 }
+#div_tabGroupListNavi
+{
+    text-align: center;
+}
+
+#div_tabGroupListNavi button
+{
+    line-height:1.5 em;
+    vertical-align: middle;
+}
 
 .cHidden
 {

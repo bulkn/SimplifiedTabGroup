@@ -312,7 +312,6 @@ window.onload = async function()
                         console.error( `RemoveTabFromGroup: tabs.create( { active: true, windowId: ${windows[windowId].id} } )`, e );
                     } );
                 }
-                
             }
         }
         catch( e )
@@ -415,7 +414,7 @@ window.onload = async function()
         
                 await storage.set( { state } );
         
-                await RecreateMenus( );
+                await RecreateMenu( );
     
                 resolve( true );
             }
@@ -536,7 +535,7 @@ window.onload = async function()
                 await storage.set( { state } );
         
                 //create menus
-                await RecreateMenus( );
+                await RecreateMenu( );
     
                 resolve( true );
             }
@@ -547,7 +546,7 @@ window.onload = async function()
         } );
     }
 
-    function RecreateMenus( )
+    function RecreateMenu( )
     {
         return new Promise( async ( resolve, reject ) => {
             try
@@ -682,10 +681,13 @@ window.onload = async function()
             //discard tabs
             if( settings.discardWhenHidden && !windows[windowId].tabGroups[oldGroupId].noDiscard )
             {
-                browser.tabs.discard( windows[windowId].tabGroups[oldGroupId].tabs ).catch( e => {
-                    //happens when user showed the hidden tab from urlbar on about:newtab. hmm
-                    console.error( `SetCurrentGroup: tabs.discard( )`, e );
-                } );
+                for( let tab of windows[windowId].tabGroups[oldGroupId].tabs )
+                {
+                    browser.tabs.discard( tab ).catch( e => {
+                        //happens when user showed the hidden tab from urlbar on about:newtab. hmm
+                        console.error( `SetCurrentGroup: tabs.discard( )`, e );
+                    } );
+                }
 
                 windows[windowId].tabGroups[oldGroupId].audibleTabs = [];
 
@@ -716,8 +718,8 @@ window.onload = async function()
             }
 
             //recreate menus
-            RecreateMenus().catch( e => { 
-                console.error( `SetCurrentGroup: RecreateMenus()`, e );
+            RecreateMenu().catch( e => { 
+                console.error( `SetCurrentGroup: RecreateMenu()`, e );
             } );
 
             storage.set( { windows } ).catch( e => { 
@@ -1235,7 +1237,7 @@ window.onload = async function()
 
             await storage.set( { windows } );
 
-            await RecreateMenus();
+            await RecreateMenu();
         }
         catch( e )
         {
@@ -1262,7 +1264,7 @@ window.onload = async function()
 
             await storage.set( { windows } );
 
-            await RecreateMenus();
+            await RecreateMenu();
         }
         catch( e )
         {
@@ -1383,7 +1385,7 @@ window.onload = async function()
 
                         windows[wid].tabGroupsOrder.push( newGroupId );
 
-                        await RecreateMenus();
+                        await RecreateMenu();
 
                         await storage.set( { windows } );
     
@@ -1470,7 +1472,7 @@ window.onload = async function()
 
                         await SetWindowSessionInfo( windows[targetWindowId].id );
     
-                        await RecreateMenus();
+                        await RecreateMenu();
     
                         if( client )
                         {
@@ -1541,7 +1543,7 @@ window.onload = async function()
 
                         windows[targetWindowId].tabGroupsOrder.splice( orderIdx, 1 );
 
-                        await RecreateMenus();
+                        await RecreateMenu();
 
                         await storage.set( { windows } );
 
@@ -1691,7 +1693,7 @@ window.onload = async function()
 
                         SetWindowSessionInfo( windows[wid].id );
 
-                        await RecreateMenus();
+                        await RecreateMenu();
 
                         await storage.set( { windows } );
                     }
