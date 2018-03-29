@@ -37,6 +37,8 @@ var settings =
 }
 
 var port;
+
+var emPixel;
 //#endregion
 
 function dlog( ...args )
@@ -169,6 +171,26 @@ function ChangeTabGroupsOrder( targetId = "", order = "up" ) // order "up" or "d
 //#endregion
 
 //#region html functions
+function SetEmPixel()
+{
+    let newElem = document.createElement( "span" );
+    let ret;
+
+    newElem.style["font-size"] = "1em";
+
+    newElem.style["position"] = "absolute";
+
+    newElem.style["top"] = "-100px";
+
+    newElem.appendChild( document.createTextNode("Text") );
+
+    document.body.appendChild( newElem );
+
+    emPixel = newElem.offsetHeight;
+
+    document.body.removeChild( newElem );
+}
+
 function RefreshTabGroupList()
 {
     let collection = document.getElementsByClassName( "cGroupNameInput" );
@@ -225,22 +247,22 @@ function MakeTabGroupRow( name = "", id = "", currentGroup = false )
 
     if( currentGroup )
     {
-        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" style="font-weight:bold;font-size:larger;" tabindex="2">&#9656;</button></td>`;
+        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" tabindex="2"><img class="cButtons" src="../Resources/mark_rightTriangle.svg"></button></td>`;
     }
     else
     {
-        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" style="font-weight:bold;font-size:larger; tabindex="2">&#9675;</button></td>`;
+        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" tabindex="2"><img class="cButtons" src="../Resources/mark_circle.svg"></button></td>`;
     }
     
     ret += `<td><input type="text" class="cGroupNameInput" id="groupID_${id}" tabindex="1"></td>`;
 
     if( tabGroups[id].muted )
     {
-        ret += `<td><button class="cUnmuteTabGroup" id="groupMuteID_${id}" tabindex="3">&#128263;</button></td>`
+        ret += `<td><button class="cUnmuteTabGroup" id="groupMuteID_${id}" tabindex="3"><img class="cButtons" src="../Resources/mark_speakerMuted.svg"></button></td>`
     }
     else if( tabGroups[id].audibleTabs.length != 0 )
     {
-        ret += `<td><button class="cMuteTabGroup" id="groupMuteID_${id}" tabindex="3">&#128266;</button></td>`
+        ret += `<td><button class="cMuteTabGroup" id="groupMuteID_${id}" tabindex="3"><img class="cButtons" src="../Resources/mark_speaker.svg"></button></td>`
     }
     else
     {
@@ -280,6 +302,8 @@ function CreateTabGroupsHtml()
             div.innerHTML += MakeTabGroupRow( name, gid );
         }
     }
+
+    SetEmPixel();
 
     let div = document.getElementById( "tbl_tabGroupList" );
 
@@ -327,7 +351,7 @@ function MakePagerArea()
 
         if( tabGroupsPager.current > 0 )
         {
-            html += `<button style="font-size:x-large;" id="pagerPrev">&#9666;</button>`;    
+            html += `<button id="pagerPrev"><img class="cButtons" src="../Resources/mark_leftTriangle.svg"></button>`;    
         }
 
         for( let i = 0; i < pages; i++ )
@@ -344,7 +368,7 @@ function MakePagerArea()
 
         if( tabGroupsPager.current < ( pages - 1 ) )
         {
-            html += `<button style="font-size:x-large;" id="pagerNext">&#9656;</button>`;
+            html += `<button id="pagerNext"><img class="cButtons" src="../Resources/mark_rightTriangle.svg"></button>`;
         }
 
         naviArea.innerHTML = html;
@@ -810,7 +834,7 @@ window.onload = async function()
 
                 elem.className = "cUnmuteTabGroup";
 
-                elem.innerHTML = "&#128263;";
+                elem.innerHTML = `<img class="cButtons" src="../Resources/mark_speakerMuted.svg">`;
 
                 elem.removeEventListener( "click", OnMuteClicked );
 
@@ -832,7 +856,7 @@ window.onload = async function()
 
                 elem.className = "cMuteTabGroup";
 
-                elem.innerHTML = "&#128266;";
+                elem.innerHTML = `<img class="cButtons" src="../Resources/mark_speaker.svg">`;
 
                 elem.removeEventListener( "click", OnUnmuteClicked );
 

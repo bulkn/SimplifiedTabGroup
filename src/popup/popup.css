@@ -25,7 +25,13 @@ input, button
 input[type="text"]
 {
     padding: 3px;
-    border: thin solid olive;
+    border: thin solid #999;
+    border-radius: .3em;
+}
+
+input[type="checkbox"]
+{
+    vertical-align: middle;
 }
 
 button
@@ -34,6 +40,7 @@ button
     padding-right:1px;
     cursor:pointer;
     color: midnightblue;
+        /* vertical-align: middle; */
 }
 
 button:hover
@@ -58,8 +65,15 @@ table
 
 #div_tabGroupListNavi button
 {
-    line-height:1.5 em;
-    vertical-align: middle;
+    height: 1em;
+}
+
+
+.cButtons
+{
+    height: .8em;
+    margin-left: .3em;
+    margin-right: .3em;
 }
 
 .cHidden
@@ -69,6 +83,7 @@ table
 .cText 
 {
     font-size: small;
+    vertical-align: middle;
 }
 
 .cTabGroupMenu
