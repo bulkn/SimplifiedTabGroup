@@ -24,7 +24,20 @@
     "browser_action": 
     {
         "default_icon": "Resources/icon.svg",
-        "default_popup": "popup/popup.html"
+        "default_popup": "popup/popup.html",
+        "theme_icons": 
+        [
+            {
+                "light": "Resources/icon_light.svg",
+                "dark": "Resources/icon_dark.svg",
+                "size": 16
+            },
+            {
+                "light": "Resources/icon_light.svg",
+                "dark": "Resources/icon_dark.svg",
+                "size": 32
+            }
+        ]
     },
 
     "icons": 
