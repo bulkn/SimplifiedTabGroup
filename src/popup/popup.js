@@ -172,9 +172,9 @@ function ChangeTabGroupsOrder( targetId = "", order = "up" ) // order "up" or "d
 
     port.postMessage( { msg: bgMsg.SetTabGroupsOrder, data: state.tabGroupsOrder } );
 
+    PagerInit( targetId );
+
     CreateTabGroupsHtml();
-
-
 }
 //#endregion
 
@@ -383,7 +383,7 @@ function MakeTabGroupRow( name = "", id = "", currentGroup = false )
     //#region make tab group length
     td = MakeElement( 'td' );
 
-    td.appendChild( document.createTextNode( `[${tabGroups[id].tabs.length}]`) );
+    td.appendChild( MakeElement( 'span', { class: 'cText'}, {}, `[${tabGroups[id].tabs.length}]` ) );
 
     tr.appendChild( td );
     //#endregion
@@ -440,12 +440,14 @@ function CreateTabGroupsHtml()
         }
     }
 
-    if( div.clientHeight > tabGroupTableMaxHeight )
+    let tableWrapper = document.getElementById( "div_tableWrapper" );
+    
+    if( tableWrapper.clientHeight > tabGroupTableMaxHeight )
     {
-        tabGroupTableMaxHeight = div.clientHeight;
+        tabGroupTableMaxHeight = tableWrapper.clientHeight;
     }
 
-    div.style["height"] = `${tabGroupTableMaxHeight}px`;
+    tableWrapper.style["height"] = `${tabGroupTableMaxHeight}px`;
 
     MakePagerArea();
 
@@ -461,6 +463,26 @@ function CreateTabGroupsHtml()
 //#endregion
 
 //#region pager functions/listners
+function PagerInit( groupId = "" )
+{
+    let idx = state.tabGroupsOrder.indexOf( groupId );
+
+    if( idx == -1 )
+    {
+        Notice( `PagerInit failed: idx is -1. ${ groupId }`);
+
+        return;
+    }
+
+    if( idx == 0 )
+    {
+        tabGroupsPager.current = 0;
+    }
+    else
+    {
+        tabGroupsPager.current = Math.ceil( ( idx + 1 ) / tabGroupsPager.max ) - 1;
+    }
+}
 function MakePagerArea()
 {
     let pages = Math.ceil( state.tabGroupsOrder.length / tabGroupsPager.max );
@@ -535,7 +557,6 @@ function MakePagerArea()
 
     SetPagerListeners();
 }
-
 function SetPagerListeners()
 {
     let collection = document.getElementsByClassName( "cPagerNumber" );
@@ -849,6 +870,8 @@ window.onload = async function()
                 state = obj.data.state;
 
                 tabGroups = obj.data.tabGroups;
+
+                PagerInit( state.currentGroup );
 
                 CreateTabGroupsHtml();
 

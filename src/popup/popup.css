@@ -53,10 +53,6 @@ table
 {
     border-collapse: collapse;
 }
-table tr
-{
-    display: block;
-}
 
 #div_notice
 {
