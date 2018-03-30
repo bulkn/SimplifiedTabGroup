@@ -53,6 +53,10 @@ table
 {
     border-collapse: collapse;
 }
+table tr
+{
+    display: block;
+}
 
 #div_notice
 {
@@ -69,12 +73,18 @@ table
 }
 
 
-.cButtons
+.cButtons, .cDummyButton
 {
     height: .8em;
     margin-left: .3em;
     margin-right: .3em;
 }
+
+.cDummyButton:hover
+{
+    cursor: default;
+}
+
 
 .cHidden
 {

@@ -39,6 +39,8 @@ var settings =
 var port;
 
 var emPixel;
+
+var tabGroupTableMaxHeight = 0;
 //#endregion
 
 function dlog( ...args )
@@ -51,10 +53,16 @@ function dlog( ...args )
 
 function Notice( msg = "" )
 {
-    var elem = document.getElementById( "div_notice" );
-    elem.innerHTML = msg;
+    let elem = document.getElementById( "div_notice" );
+
+    let tn = document.createTextNode( msg );
+
+    ClearNode( elem );
+
+    elem.appendChild( tn );
+    
     setInterval( ev => {
-        elem.innerHTML = "";
+        ClearNode( elem );
     }, 5000 );
 }
 
@@ -171,6 +179,36 @@ function ChangeTabGroupsOrder( targetId = "", order = "up" ) // order "up" or "d
 //#endregion
 
 //#region html functions
+function ClearNode( node )
+{
+    while ( node.firstChild ) {
+        node.removeChild(node.firstChild);
+    }
+}
+function MakeElement( tag = "", attributes = {}, styles = {}, text = "" )
+{
+    let elem = document.createElement( tag );
+
+    for( let a in attributes )
+    {
+        elem.setAttribute( a, attributes[a] );
+    }
+
+    for( let s in styles )
+    {
+        elem.style[s] = styles[s];
+    }
+
+    if( text.length != 0 )
+    {
+        let tn = document.createTextNode( text );
+
+        elem.appendChild( tn );
+    }
+
+    return elem;
+}
+
 function SetEmPixel()
 {
     let newElem = document.createElement( "span" );
@@ -243,47 +281,124 @@ function RefreshTabGroupList()
 
 function MakeTabGroupRow( name = "", id = "", currentGroup = false )
 {
-    var ret = `<tr id="groupRowID_${id}" class="cTabGroupRow">`;
+    let tr = MakeElement( 'tr', { class: `cTabGroupRow`, id: `groupRowID_${id}` } );
+
+    //#region make currentGroup mark
+    let mark;
 
     if( currentGroup )
     {
-        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" tabindex="2"><img class="cButtons" src="../Resources/mark_rightTriangle.svg"></button></td>`;
+        mark = `../Resources/mark_rightTriangle.svg`;
     }
     else
     {
-        ret += `<td><button class="cCurrentGroupMark" id="groupMarkID_${id}" tabindex="2"><img class="cButtons" src="../Resources/mark_circle.svg"></button></td>`;
+        mark = `../Resources/mark_circle.svg`;
     }
-    
-    ret += `<td><input type="text" class="cGroupNameInput" id="groupID_${id}" tabindex="1"></td>`;
 
-    if( tabGroups[id].muted )
+    let td = MakeElement( 'td' );
+
+    let btn = MakeElement( 'button', { class: 'cCurrentGroupMark', id: `groupMarkID_${id}`, tabindex: "2" } );
+
+    let img = MakeElement( 'img', { class: 'cButtons', src: mark } );
+
+    btn.appendChild( img );
+
+    td.appendChild( btn );
+
+    tr.appendChild( td );
+    //#endregion
+
+    //#region make group name input
+    td = MakeElement( 'td' );
+
+    let input = MakeElement( 'input', { type: 'text', class: 'cGroupNameInput', id: `groupID_${id}`, tabindex: "1" } );
+
+    td.appendChild( input );
+
+    tr.appendChild( td );
+    //#endregion
+
+    //#region make audible mark
+    td = MakeElement( 'td' );
+
+    if( tabGroups[id].audibleTabs.length == 0 )
     {
-        ret += `<td><button class="cUnmuteTabGroup" id="groupMuteID_${id}" tabindex="3"><img class="cButtons" src="../Resources/mark_speakerMuted.svg"></button></td>`
-    }
-    else if( tabGroups[id].audibleTabs.length != 0 )
-    {
-        ret += `<td><button class="cMuteTabGroup" id="groupMuteID_${id}" tabindex="3"><img class="cButtons" src="../Resources/mark_speaker.svg"></button></td>`
+        tr.appendChild( td );
     }
     else
     {
-        ret += `<td></td>`;
-    }
+        let mark = '';
 
+        let className = '';
+
+        if( tabGroups[id].muted )
+        {
+            mark = '../Resources/mark_speakerMuted.svg';
+
+            className = 'cUnmuteTabGroup';
+        }
+        else
+        {
+            mark = '../Resources/mark_speaker.svg';
+
+            className = 'cMuteTabGroup';
+        }
+
+        let btn = MakeElement( 'button', { class: className, id: `groupMuteID_${id}`, tabindex: `3` } );
+
+        let img = MakeElement( 'img', { class: `cButtons`, src: mark } );
+
+        btn.appendChild( img );
+
+        td.appendChild( btn );
+
+        tr.appendChild( td );
+    }
+    //#endregion
+
+    //#region make noDiscard checkbox
     if( settings.discardWhenHidden )
     {
-        let checked = tabGroups[id].noDiscard ? "checked" : "";
-        
-        ret += `<td><input type="checkbox" ${checked} class="cNoDicard" id="groupNoDiscardID_${id}" title="if this checkbox is checked, this group is not going to be discarded."></td>`;
+        let td = MakeElement( 'td' );
+
+        let cb;
+
+        let title = `if this checkbox is checked, this group is not going to be discarded.`;
+
+        if( tabGroups[id].noDiscard )
+        {
+            cb = MakeElement( 'input', { type: 'checkbox', class: `cNoDicard`, id: `groupNoDiscardID_${id}`, title: title, checked: `true` } );
+        }
+        else
+        {
+            cb = MakeElement( 'input', { type: 'checkbox', class: `cNoDicard`, id: `groupNoDiscardID_${id}`, title: title } );
+        }
+
+        td.appendChild( cb );
+
+        tr.appendChild( td );
     }
+    //#endregion
+    
+    //#region make tab group length
+    td = MakeElement( 'td' );
 
-    ret += `
-        <td><span class="cText">[${tabGroups[id].tabs.length == 0 ? 1 : tabGroups[id].tabs.length }]</span></td>
-        <td><button style="font-weight:bold;" id="groupMenuID_${id}" tabindex="3" class="cTabGroupMenuButton" >&#8943;</button></td> 
-    `;
+    td.appendChild( document.createTextNode( `[${tabGroups[id].tabs.length}]`) );
 
-    ret += `</tr>`
+    tr.appendChild( td );
+    //#endregion
 
-    return ret;
+    //#region make tabgroup command button
+    td = MakeElement( 'td' );
+
+    btn = MakeElement( 'button', { class: 'cTabGroupMenuButton', id: `groupMenuID_${id}`, tabindex: "3" }, { 'font-weight': 'bold' }, '⋯' );
+
+    td.appendChild( btn );
+
+    tr.appendChild( td );
+    //#endregion
+
+    return tr;
 }
 
 function CreateTabGroupsHtml()
@@ -295,11 +410,11 @@ function CreateTabGroupsHtml()
 
         if( gid == state.currentGroup )
         {
-            div.innerHTML += MakeTabGroupRow( name, gid, true );
+            div.appendChild( MakeTabGroupRow( name, gid, true ) );
         }
         else
         {
-            div.innerHTML += MakeTabGroupRow( name, gid );
+            div.appendChild( MakeTabGroupRow( name, gid ) );
         }
     }
 
@@ -307,7 +422,7 @@ function CreateTabGroupsHtml()
 
     let div = document.getElementById( "tbl_tabGroupList" );
 
-    div.innerHTML = "";
+    ClearNode( div );
 
     let count = 0;
 
@@ -324,6 +439,13 @@ function CreateTabGroupsHtml()
             break;
         }
     }
+
+    if( div.clientHeight > tabGroupTableMaxHeight )
+    {
+        tabGroupTableMaxHeight = div.clientHeight;
+    }
+
+    div.style["height"] = `${tabGroupTableMaxHeight}px`;
 
     MakePagerArea();
 
@@ -343,35 +465,72 @@ function MakePagerArea()
 {
     let pages = Math.ceil( state.tabGroupsOrder.length / tabGroupsPager.max );
 
+    let naviArea = document.getElementById( "div_tabGroupListNavi" );
+
+    ClearNode( naviArea );  
+
     if( pages > 1 )
     {
-        let naviArea = document.getElementById( "div_tabGroupListNavi" );
-
-        let html = ``;
-
+        //make back button
         if( tabGroupsPager.current > 0 )
         {
-            html += `<button id="pagerPrev"><img class="cButtons" src="../Resources/mark_leftTriangle.svg"></button>`;    
+            let btn = MakeElement( 'button', { id: 'pagerPrev'} );
+
+            let img = MakeElement( 'img', { class: 'cButtons', src: '../Resources/mark_leftTriangle.svg' } );
+
+            btn.appendChild( img );
+
+            naviArea.appendChild( btn );
+        }
+        else
+        {
+            let btn = MakeElement( 'button', { class: 'cDummyButton' } );
+
+            let img = MakeElement( 'img', { class: 'cButtons', src: '../Resources/mark_dummy.svg' } );
+
+            btn.appendChild( img );
+
+            naviArea.appendChild( btn );
         }
 
+        //make number button
         for( let i = 0; i < pages; i++ )
         {
+            let btn;
+
             if( tabGroupsPager.current == i )
             {
-                html += `<button style="font-weight:bold;">[${i}]</button> `;
+                btn = MakeElement( 'button', {}, { 'font-weight': 'bold' }, `[${i}]` );
             }
             else
             {
-                html += `<button class="cPagerNumber" data-pagerNumber="${i}">[${i}]</button> `;
-            }   
+                btn = MakeElement( 'button', { class: 'cPagerNumber', 'data-pagerNumber': `${i}` }, { }, `[${i}]` );
+            }
+
+            naviArea.appendChild( btn );
         }
 
+        //make next button
         if( tabGroupsPager.current < ( pages - 1 ) )
         {
-            html += `<button id="pagerNext"><img class="cButtons" src="../Resources/mark_rightTriangle.svg"></button>`;
-        }
+            let btn = MakeElement( 'button', { id: 'pagerNext' } );
 
-        naviArea.innerHTML = html;
+            let img = MakeElement( 'img', { class: 'cButtons', src: '../Resources/mark_rightTriangle.svg' } );
+
+            btn.appendChild( img );
+
+            naviArea.appendChild( btn );
+        }
+        else
+        {
+            let btn = MakeElement( 'button', { class: 'cDummyButton' } );
+
+            let img = MakeElement( 'img', { class: 'cButtons', src: '../Resources/mark_dummy.svg' } );
+
+            btn.appendChild( img );
+
+            naviArea.appendChild( btn );
+        }
     }
 
     SetPagerListeners();
@@ -458,45 +617,22 @@ function OnSettingClicked()
 
     cb_discardWhenHidden.addEventListener( "change", ev => {
         port.postMessage( { msg: bgMsg.SetDiscardWhenHidden, data: ev.target.checked } );
-
-        settings.discardWhenHidden = ev.target.checked;
     } );
 
     cb_muteWhenHidden.addEventListener( "change", ev => { 
         port.postMessage( { msg: bgMsg.SetMuteWhenHidden, data: ev.target.checked } );
-
-        settings.muteWhenHidden = ev.target.checked;
     } );
 
     cb_debug.addEventListener( "change", ev => {
         port.postMessage( { msg: bgMsg.SetDebug, data: ev.target.checked } );
-
-        settings.debug = ev.target.checked;
     } );
 
     cb_showAdvancedButtons.addEventListener( "change", ev => {  
         port.postMessage( { msg: bgMsg.SetShowAdvancedButtons, data: ev.target.checked } );
-
-        settings.showAdvancedButtons = ev.target.checked;
-
-        let div = document.getElementById( "div_advencedButtons" );
-
-        if( cb_showAdvancedButtons.checked )
-        {
-            div.className = "";
-        }
-        else
-        {
-            div.className = "cHidden";
-        }
     } );
 
     cb_settingAutoClosePopup.addEventListener( "change", ev => { 
         port.postMessage( { msg: bgMsg.SetAutoClosePopup, data: ev.target.checked } );
-
-        settings.autoClosePopup = ev.target.checked;
-        
-        SetAutoClose( ev.target.checked );
     } );
 
     elem.className = "";
@@ -516,11 +652,9 @@ function OnUnmuteClicked( ev )
 
 function OnNoDiscardChanged( ev )
 {
-    let value = ev.target.checked;
-
     let id = ev.target.id.substr( "groupNoDiscardID_".length );
 
-    port.postMessage( { msg:bgMsg.SetNoDicard, data:{ groupId:id, value:value } } );
+    port.postMessage( { msg:bgMsg.SetNoDicard, data:{ groupId:id, value: ev.target.checked } } );
 }
 //#endregion
 
@@ -670,7 +804,7 @@ function AutoCloseResizeListner( ev )
 
     this.setTimeout( ev => { 
         document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
-    }, 100 );
+    }, 50 );
 }
 
 function SetAutoClose( bClose = false )
@@ -705,7 +839,7 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( `Failed to GetInfos. <br>err: ${obj.data.err}`);
+                    Notice( `GetInfos failed: ${obj.data.err}`);
 
                     return;
                 }
@@ -734,7 +868,7 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( `Failed to rename. ${obj.data.oldname} to ${obj.data.newname}. <br>${obj.data.err}` );
+                    Notice( `SetGroupName failed: ${obj.data.err}` );
 
                     return;
                 }
@@ -751,7 +885,7 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( `Failed to add a new group. ${obj.data.err}` );
+                    Notice( `AddNewGroup failed: ${obj.data.err}` );
 
                     return;
                 }
@@ -766,12 +900,14 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( `Failed to remove a group. ${obj.data.err}` );
+                    Notice( `RemoveTabGroup failed: ${obj.data.err}` );
 
                     return;
                 }
 
                 Notice( `${tabGroups[obj.data.id].name} is removed.` );
+
+                tabGroupTableMaxHeight = 0;
 
                 port.postMessage( { msg: bgMsg.GetInfos } );
 
@@ -781,7 +917,7 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( `Failed to switch current group. ${obj.data.err}`);
+                    Notice( `SetCurrentGroup failed: ${obj.data.err}`);
 
                     return;
                 }
@@ -798,7 +934,7 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( `Failed to discard tabs. ${obj.data.err}` );
+                    Notice( `DiscardOneTime failed: ${obj.data.err}` );
                 }
 
                 Notice( `Hidden tabs are discarded.` );
@@ -809,11 +945,14 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( `ResetAll failed. ${obj.data.err}` );
+                    Notice( `ResetAll failed: ${obj.data.err}` );
 
                     return;
                 }
-                Notice( `ResetAll succeeded.` );
+
+                Notice( 'ResetAll' );
+
+                tabGroupTableMaxHeight = 0;
 
                 port.postMessage( { msg: bgMsg.GetInfos } );
 
@@ -823,7 +962,7 @@ window.onload = async function()
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( obj.data.err );
+                    Notice( `MuteTabGroup failed: ${obj.data.err}` );
 
                     return;
                 }
@@ -834,18 +973,23 @@ window.onload = async function()
 
                 elem.className = "cUnmuteTabGroup";
 
-                elem.innerHTML = `<img class="cButtons" src="../Resources/mark_speakerMuted.svg">`;
+                ClearNode( elem );
+
+                elem.appendChild( MakeElement( 'img', { class: 'cButtons', src: '../Resources/mark_speakerMuted.svg' } ) );
 
                 elem.removeEventListener( "click", OnMuteClicked );
 
                 elem.addEventListener( "click", OnUnmuteClicked );
+
+                tabGroups[obj.data.id].muted = true;
+
                 break;
             }               
             case bgMsg.UnmuteTabGroup:
             {
                 if( !obj.data.succeeded )
                 {
-                    Notice( obj.data.err );
+                    Notice( `UnmuteTabGroup failed: ${obj.data.err}` );
 
                     return;
                 }
@@ -856,18 +1000,109 @@ window.onload = async function()
 
                 elem.className = "cMuteTabGroup";
 
-                elem.innerHTML = `<img class="cButtons" src="../Resources/mark_speaker.svg">`;
+                ClearNode( elem );
+
+                elem.appendChild( MakeElement( 'img', { class: 'cButtons', src: '../Resources/mark_speaker.svg' } ) );
 
                 elem.removeEventListener( "click", OnUnmuteClicked );
 
                 elem.addEventListener( "click", OnMuteClicked );
+
+                tabGroups[obj.data.id].muted = false;
+
                 break;
             }
+            case bgMsg.SetNoDicard:
+            {
+                if( !obj.data.succeeded )
+                {
+                    Notice( `SetNoDiscard failed: ${obj.data.err}` );
+
+                    return;
+                }
+
+                tabGroups[obj.data.id].noDiscard = obj.data.noDiscard;
+
+                break;
+            }
+            //settings
             case bgMsg.SetDiscardWhenHidden:
             {
-                settings.discardWhenHidden = obj.data;
+                if( !obj.data.succeeded )
+                {
+                    Notice( `SetDiscardWhenHidden failed: ${obj.data.err}` );
+
+                    return;
+                }
+
+                settings.discardWhenHidden = obj.data.discardWhenHidden;
 
                 CreateTabGroupsHtml();
+
+                break;
+            }
+            case bgMsg.SetMuteWhenHidden:
+            {
+                if( !obj.data.succeeded )
+                {
+                    Notice( `SetMuteWhenHidden failed: ${obj.data.err}` );
+
+                    return;
+                }
+
+                settings.muteWhenHidden = obj.data.muteWhenHidden;
+
+                break;
+            }
+            case bgMsg.SetDebug:
+            {
+                if( !obj.data.succeeded )
+                {
+                    Notice( `SetDebug failed: ${obj.data.err}` );
+
+                    return;
+                }
+
+                settings.debug = obj.data.debug;
+
+                break;
+            }
+            case bgMsg.SetShowAdvancedButtons:
+            {
+                if( !obj.data.succeeded )
+                {
+                    Notice( `SetShowAdvancedButtons failed: ${obj.data.err}` );
+
+                    return;
+                }
+
+                settings.showAdvancedButtons = obj.data.showAdvancedButtons;
+
+                let div = document.getElementById( "div_advencedButtons" );
+
+                if( cb_showAdvancedButtons.checked )
+                {
+                    div.className = "";
+                }
+                else
+                {
+                    div.className = "cHidden";
+                }
+
+                break;
+            }
+            case bgMsg.SetAutoClosePopup:
+            {
+                if( !obj.data.succeeded )
+                {
+                    Notice( `SetAutoClosePopup failed: ${obj.data.err}` );
+
+                    return;
+                }
+
+                settings.autoClosePopup = obj.data.autoClosePopup;
+        
+                SetAutoClose( settings.autoClosePopup );
 
                 break;
             }

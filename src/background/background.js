@@ -1675,10 +1675,20 @@ window.onload = async function()
                         windows[wid].tabGroups[gid].noDiscard = noDiscard;
     
                         await storage.set( { windows } );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetNoDicard, data: { succeeded: true, id: gid, noDiscard: obj.data.value } } );
+                        }
                     }
                     catch( e )
                     {
                         console.error( e );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetNoDicard, data: { succeeded: false, err: e } } );
+                        }
                     }
 
                     break;
@@ -1714,12 +1724,16 @@ window.onload = async function()
 
                         if( client )
                         {
-                            client.postMessage( { msg: bgMsg.SetDiscardWhenHidden, data: settings.discardWhenHidden } );
+                            client.postMessage( { msg: bgMsg.SetDiscardWhenHidden, data:{ succeeded: true, discardWhenHidden: settings.discardWhenHidden } } );
                         }           
                     }
                     catch( e )
                     {
                         console.error( e );
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetDiscardWhenHidden, data:{ succeeded: false, err: e } } );
+                        } 
                     }
 
                     break;
@@ -1731,10 +1745,20 @@ window.onload = async function()
                         settings.muteWhenHidden = obj.data;
 
                         await storage.set( { settings } );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetMuteWhenHidden, data: { succeeded: true, muteWhenHidden: obj.data } } );
+                        }
                     }
                     catch( e )
                     {
                         console.error( e );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetMuteWhenHidden, data: { succeeded: false, err: e } } );
+                        }
                     }
                     
                     break;
@@ -1746,10 +1770,20 @@ window.onload = async function()
                         settings.debug = obj.data;
                     
                         await storage.set( { settings } );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetDebug, data: { succeeded: true, debug: obj.data } } );
+                        }
                     }
                     catch( e )
                     {
                         console.error( e );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetDebug, data: { succeeded: false, err: e } } );
+                        }
                     }
                     
                     break;
@@ -1761,10 +1795,20 @@ window.onload = async function()
                         settings.showAdvancedButtons = obj.data;
 
                         await storage.set( { settings } );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetShowAdvancedButtons, data: { succeeded: true, showAdvancedButtons: obj.data } } );
+                        }
                     }
                     catch( e )
                     {
                         console.error( e );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetShowAdvancedButtons, data: { succeeded: false, err: e } } );
+                        }
                     }
 
                     break;
@@ -1776,10 +1820,20 @@ window.onload = async function()
                         settings.autoClosePopup = obj.data;
 
                         await storage.set( { settings } );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetAutoClosePopup, data: { succeeded: true, autoClosePopup: obj.data } } );
+                        }
                     }
                     catch( e )
                     {
                         console.error( e );
+
+                        if( client )
+                        {
+                            client.postMessage( { msg: bgMsg.SetAutoClosePopup, data: { succeeded: false, err: e } } );
+                        }
                     }
 
                     break;
