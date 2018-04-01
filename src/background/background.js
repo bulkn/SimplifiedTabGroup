@@ -23,6 +23,7 @@ const defaultWindows =
                 noDiscard: false,
                 tabs: [],
                 audibleTabs: [],
+                pinnedTabs: []
             }
         }
     }
@@ -241,6 +242,11 @@ window.onload = async function()
             {
                 windows[windowId].tabGroups[groupId].audibleTabs.push( tab.id );
             }
+
+            if( tab.pinned )
+            {
+                windows[windowId].tabGroups[groupId].pinnedTabs.push( tab.id );
+            }
     
             windows[windowId].tabIndexes[tab.id.toString()] = groupId;
 
@@ -277,6 +283,8 @@ window.onload = async function()
             let idx = windows[windowId].tabGroups[groupId].tabs.indexOf( tabId );
     
             let aidx = windows[windowId].tabGroups[groupId].audibleTabs.indexOf( tabId );
+
+            let pidx = windows[windowId].tabGroups[groupId].pinnedTabs.indexOf( tabId );
     
             if( idx == -1 )
             {
@@ -288,6 +296,11 @@ window.onload = async function()
             if( aidx != -1 )
             {
                 windows[windowId].tabGroups[groupId].audibleTabs.splice( aidx, 1 );
+            }
+
+            if( pidx != -1 )
+            {
+                windows[windowId].tabGroups[groupId].pinnedTabs.splice( pidx, 1 );
             }
 
             delete windows[windowId].tabIndexes[tabId];
@@ -327,6 +340,8 @@ window.onload = async function()
             let idx = windows[windowId].tabGroups[groupFrom].tabs.indexOf( tabId );
 
             let aIdx = windows[windowId].tabGroups[groupFrom].audibleTabs.indexOf( tabId );
+
+            let pIdx = windows[windowId].tabGroups[groupFrom].pinnedTabs.indexOf( tabId );
     
             windows[windowId].tabGroups[groupFrom].tabs.splice( idx, 1 );
     
@@ -337,6 +352,13 @@ window.onload = async function()
                 windows[windowId].tabGroups[groupFrom].audibleTabs.splice( aIdx, 1 );
     
                 windows[windowId].tabGroups[groupTo].audibleTabs.push( tabId );
+            }
+
+            if( pIdx != -1 )
+            {
+                windows[windowId].tabGroups[groupFrom].pinnedTabs.splice( aIdx, 1 );
+    
+                windows[windowId].tabGroups[groupTo].pinnedTabs.push( tabId );
             }
     
             windows[windowId].tabIndexes[tabId] = groupTo;
@@ -668,6 +690,23 @@ window.onload = async function()
                 windows[windowId].tabGroups[targetGroupId].muted = false;
             }
 
+            //unpin oldgroup tabs
+            for( let pTab of windows[windowId].tabGroups[oldGroupId].pinnedTabs )
+            {
+                browser.tabs.update( pTab, { pinned: false } ).catch( e => {
+                    console.error( `SetCurrentGroup tabs.update()`, e );
+                } );
+            }
+
+            //repin newgrouptabs
+            for( let pTab of windows[windowId].tabGroups[targetGroupId].pinnedTabs )
+            {
+                browser.tabs.update( pTab, { pinned: true } ).catch( e => { 
+                    console.error( `SetCurrentGroup tabs.update()`, e );
+                } );
+            }
+
+            //hide tabs
             for( let tab of windows[windowId].tabGroups[oldGroupId].tabs )
             {
                 browser.tabs.hide( tab ).catch( e => {
@@ -739,13 +778,6 @@ window.onload = async function()
         {
             dlog( `MenuOnClicked`, info, tab );
 
-            if( tab.pinned )
-            {
-                dlog( `MenuOnClicked : can not move pinned tab.`);
-
-                return;
-            }
-
             let windowIdFrom = windowIds[tab.windowId];
     
             let groupFrom = windows[windowIdFrom].currentGroup;
@@ -763,37 +795,27 @@ window.onload = async function()
 
             let tabIdAlias = windows[windowIdFrom].tabIdAliases[tab.id.toString()];
 
-            let groupIdx;
-
-            let audibleIdx;
-
             let tabId;
 
             if( tabIdAlias != undefined )
             {
-                groupIdx = windows[windowIdFrom].tabGroups[groupFrom].tabs.indexOf( tabIdAlias );
-
-                audibleIdx = windows[windowIdFrom].tabGroups[groupFrom].audibleTabs.indexOf( tabIdAlias );
-
                 tabId = tabIdAlias;
             }
             else
             {
-                groupIdx = windows[windowIdFrom].tabGroups[groupFrom].tabs.indexOf( tab.id );
-
-                audibleIdx = windows[windowIdFrom].tabGroups[groupFrom].audibleTabs.indexOf( tab.id );
-
                 tabId = tab.id;
-            }
-
-            if( groupIdx == -1 )
-            {
-                throw `MenuOnClicked : groupIdx is -1, windowIdFrom: ${windowIdFrom}, groupFrom: ${groupFrom}, tabId: ${tab.id} }`;
             }
 
             //set new active tab to hide tab
             if( tab.active )
             {
+                let groupIdx = windows[windowIdFrom].tabGroups[groupFrom].tabs.indexOf( tabId );
+
+                if( groupIdx == -1 )
+                {
+                    throw `MenuOnClicked : groupIdx is -1, windowIdFrom: ${windowIdFrom}, groupFrom: ${groupFrom}, tabId: ${tab.id} }`;
+                }
+
                 //create new tab if current group length is 1
                 if( windows[windowIdFrom].tabGroups[groupFrom].tabs.length == 1 )
                 {
@@ -813,6 +835,18 @@ window.onload = async function()
                 }
             }
 
+            let pinned = tab.pinned;
+
+            //unpin if pinned
+            if( pinned )
+            {
+                browser.tabs.onUpdated.removeListener( TabUpdated );
+
+                await browser.tabs.update( tabId, { pinned: false } );
+
+                browser.tabs.onUpdated.addListener( TabUpdated );
+            }
+
             //move tab between different windows
             if( windowIdFrom != windowIdTo )
             {
@@ -823,7 +857,20 @@ window.onload = async function()
                     //onAttach sets group to window's currentGroup so.
                     MoveTabInTheSameWindow( windowIdTo, windows[windowIdTo].currentGroup, groupTo, tabId );
 
+                    if( pinned )
+                    {
+                        windows[windowIdTo].tabGroups[groupTo].pinnedTabs.push( tabId );
+                    }
+
                     await browser.tabs.hide( tabId );
+                }
+                else if( pinned )
+                {
+                    browser.tabs.onUpdated.removeListener( TabUpdated );
+
+                    await browser.tabs.update( tabId, { pinned: true } );
+
+                    browser.tabs.onUpdated.addListener( TabUpdated );
                 }
             }
             //just hide tab
@@ -942,6 +989,10 @@ window.onload = async function()
                 {
                     windows[wid].tabGroups[gid].audibleTabs.push( tabId );
                 }
+                if( aTab.pinned )
+                {
+                    windows[wid].tabGroups[gid].pinnedTabs.push( tabId );
+                }
             } ).catch( e => { console.error( `TabAttached: tabs.get()`, e ); } );
             
             AddTabToGroup( wid, gid, tab );
@@ -1010,7 +1061,7 @@ window.onload = async function()
 
             let currentGroupChange = false;
 
-            //unwanted showed tab
+            //unwanted tab is showed
             if( windows[wid].currentGroup != gid )
             {
                 //happens when user removed the last tab of the currentGroup
@@ -1025,9 +1076,16 @@ window.onload = async function()
                 //happens when user showed the hidden tab from urlbar
                 else
                 {
-                    dlog( `TabActivated : change current group.`, `tabid:${info.tabId}`, `currentGroup:${windows[wid].currentGroup}`, `gid:${gid}` );
+                    dlog( `TabActivated: change current group.`, `tabid:${info.tabId}`, `currentGroup:${windows[wid].currentGroup}`, `gid:${gid}` );
 
-                    currentGroupChange = true;
+                    //just wait a little bit
+                    browser.tabs.get( windows[wid].tabGroups[windows[wid].currentGroup].active ).then( t => {
+                        SetCurrentGroup( gid );
+                    } ).catch( e => { 
+                        //happens when user showed the hidden tab from urlbar on about:newtab
+                        dlog( `TabActivated: old actived tab is removed.` );
+                        SetCurrentGroup( gid );
+                    } );
                 }
             }
 
@@ -1051,11 +1109,6 @@ window.onload = async function()
 
             windows[wid].tabGroups[gid].active = info.tabId;
 
-            if( currentGroupChange )
-            {
-                SetCurrentGroup( gid );
-            }
-
             storage.set( { windows } ).catch( e => { console.error( `TabActivated: storage.set( { windows } )`, e ); } );
         }
         catch( e )
@@ -1068,9 +1121,20 @@ window.onload = async function()
     {
         try
         {
-            if( info.audible == undefined )
+            let changeInfo;
+
+            if( info.audible == undefined && info.pinned == undefined )
             {
                 return;
+            }
+            
+            if( info.audible != undefined )
+            {
+                changeInfo = "audible";
+            }
+            else if( info.pinned != undefined )
+            {
+                changeInfo = "pinned";
             }
     
             dlog( 'TabUpdated', tabId, info, tab );
@@ -1083,8 +1147,20 @@ window.onload = async function()
                 return;
             }
 
-            //let gid = await browser.sessions.getTabValue( tabId, "groupId" );
-            let gid = windows[wid].tabIndexes[tab.id.toString()];
+            let tabIdAlias = windows[wid].tabIdAliases[tab.id.toString()];
+
+            let fixedTabId;
+
+            if( tabIdAlias != undefined )
+            {
+                fixedTabId = tabIdAlias;
+            }
+            else
+            {
+                fixedTabId = tab.id;
+            }
+
+            let gid = windows[wid].tabIndexes[fixedTabId];
 
             if( !gid )
             {
@@ -1098,38 +1174,81 @@ window.onload = async function()
                 return;
             }
     
-            let idx = windows[wid].tabGroups[gid].tabs.indexOf( tab.id );
+            let idx = windows[wid].tabGroups[gid].tabs.indexOf( fixedTabId );
     
             if( idx == -1 )
             {
                 throw `TabUpdated : idx is -1`;
             }
 
-            let aidx = windows[wid].tabGroups[gid].audibleTabs.indexOf( tab.id );
-
-            if( info.audible )
+            switch( changeInfo )
             {
-                if( aidx == -1 )
+                case "audible":
                 {
-                    windows[wid].tabGroups[gid].audibleTabs.push( tab.id );
-                }
-            }
-            else
-            {
-                if( aidx != -1 && !tab.mutedInfo.muted )
-                {
-                    windows[wid].tabGroups[gid].audibleTabs.splice( aidx, 1 );
+                    let aidx = windows[wid].tabGroups[gid].audibleTabs.indexOf( fixedTabId );
 
-                    if( windows[wid].tabGroups[gid].audibleTabs.length == 0 ) 
+                    if( info.audible )
                     {
-                        windows[wid].tabGroups[gid].muted = false;
+                        if( aidx == -1 )
+                        {
+                            windows[wid].tabGroups[gid].audibleTabs.push( fixedTabId );
+                        }
                     }
+                    else
+                    {
+                        if( aidx != -1 && !tab.mutedInfo.muted )
+                        {
+                            windows[wid].tabGroups[gid].audibleTabs.splice( aidx, 1 );
+
+                            if( windows[wid].tabGroups[gid].audibleTabs.length == 0 ) 
+                            {
+                                windows[wid].tabGroups[gid].muted = false;
+                            }
+                        }
+                    }
+            
+                    if( gClient )
+                    {
+                        gClient.postMessage( { msg:bgMsg.TabGroupUpdated, data:windows[wid].tabGroups } );
+                    }
+                    
+                    break;
                 }
-            }
-    
-            if( gClient )
-            {
-                gClient.postMessage( { msg:bgMsg.TabGroupUpdated, data:windows[wid].tabGroups } );
+                case "pinned":
+                {
+                    if( gid != windows[wid].currentGroup )
+                    {
+                        dlog( `pinned ignore.`);
+
+                        return;
+                    }
+
+                    let pIdx;
+
+                    if( info.pinned )
+                    {
+                        pIdx = windows[wid].tabGroups[gid].pinnedTabs.indexOf( fixedTabId );
+
+                        if( pIdx == -1 )
+                        {
+                            windows[wid].tabGroups[gid].pinnedTabs.push( fixedTabId );
+                        }
+                    }
+                    else
+                    {
+                        pIdx = windows[wid].tabGroups[gid].pinnedTabs.indexOf( fixedTabId );
+
+                        if( pIdx != -1 )
+                        {
+                            windows[wid].tabGroups[gid].pinnedTabs.splice( pIdx, 1 );
+                        }
+                    }
+                    
+                    storage.set( { windows } ).catch( e => { console.error( 'TabUpdate storage.set()', e ); } );
+
+                    break;
+                }
+                    
             }
         }
         catch( e )

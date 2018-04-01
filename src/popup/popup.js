@@ -40,6 +40,8 @@ var port;
 
 var emPixel;
 
+var isCursorInWindow = true;
+
 var tabGroupTableMaxHeight = 0;
 //#endregion
 
@@ -420,6 +422,8 @@ function CreateTabGroupsHtml()
 
     SetEmPixel();
 
+    AutoClosePause();
+
     let div = document.getElementById( "tbl_tabGroupList" );
 
     ClearNode( div );
@@ -459,6 +463,8 @@ function CreateTabGroupsHtml()
     }
     
     initDone = true;
+
+    AutoCloseResume();
 }
 //#endregion
 
@@ -618,10 +624,14 @@ function OnSettingClicked()
 
     let cb_settingAutoClosePopup = document.getElementById( "cb_settingAutoClosePopup" );
 
+    AutoClosePause();
+
     //close setting
     if( elem.className != "cHidden" )
     {
         elem.className = "cHidden";
+
+        AutoCloseResume();
         return;
     }
 
@@ -657,6 +667,8 @@ function OnSettingClicked()
     } );
 
     elem.className = "";
+
+    AutoCloseResume();
 }
 
 function OnMuteClicked( ev )
@@ -798,6 +810,7 @@ var AutoCloseMouseEnterFlag = false;
 function AutoCloseMouseLeave( ev )
 {
     document.body.addEventListener( "mouseenter", AutoCloseMouseEnter );
+
     document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
 
     AutoCloseTOiid = setTimeout( ev => {
@@ -808,7 +821,9 @@ function AutoCloseMouseLeave( ev )
         else
         {
             AutoCloseMouseEnterFlag = false;
+
             document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
+
             document.body.removeEventListener( "mouseenter", AutoCloseMouseEnter );
         }
     }, 500 );
@@ -819,26 +834,34 @@ function AutoCloseMouseEnter( ev )
     AutoCloseMouseEnterFlag = true;
 }
 
-function AutoCloseResizeListner( ev )
+function AutoClosePause()
 {
     document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
+}
 
-    this.setTimeout( ev => { 
-        document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
-    }, 50 );
+function AutoCloseResume()
+{
+    document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
+
+    if( !isCursorInWindow )
+    {
+        AutoCloseMouseLeave();
+    }
 }
 
 function SetAutoClose( bClose = false )
 {
+    //clean global value and listners
+    AutoCloseMouseEnterFlag = false;
+
+    document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
+
+    document.body.removeEventListener( "mouseenter", AutoCloseMouseEnter );
+
+    //set listeners
     if( bClose )
     {
-       window.addEventListener( "resize", AutoCloseResizeListner );
-       document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
-    }
-    else
-    {
-       window.removeEventListener( "resize", AutoCloseResizeListner );
-       document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
+        document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
     }
 }
 //#endregion
@@ -1142,4 +1165,11 @@ window.onload = async function()
     document.getElementById( "btn_discardOnetime").addEventListener( "click", OnDiscardClicked );
 
     document.getElementById( "btn_resetAll").addEventListener( "click", OnResetAllClicked );
+
+    document.body.addEventListener( 'mouseleave', ev => { 
+        isCursorInWindow = false;
+    } );
+    document.body.  addEventListener( 'mouseenter', ev => { 
+        isCursorInWindow = true;
+    } );
 }
