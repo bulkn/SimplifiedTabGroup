@@ -1510,7 +1510,7 @@ window.onload = async function()
     
                         if( client )
                         {
-                            client.postMessage( { msg: bgMsg.AddNewGroup, data: { succeeded: true, tabGroups: windows[wid].tabGroups } } );
+                            client.postMessage( { msg: bgMsg.AddNewGroup, data: { succeeded: true, groupId: newGroupId } } );
                         }
                     }
                     catch( e )

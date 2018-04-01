@@ -53,19 +53,29 @@ function dlog( ...args )
     }
 }
 
+var NoticeTimeoutId = undefined;
 function Notice( msg = "" )
 {
     let elem = document.getElementById( "div_notice" );
+
+    elem.style["max-width"] = ( document.getElementById( "wrapper" ).clientWidth - 20 ).toString()+"px";
 
     let tn = document.createTextNode( msg );
 
     ClearNode( elem );
 
     elem.appendChild( tn );
+
+    if( NoticeTimeoutId != undefined )
+    {
+        clearTimeout( NoticeTimeoutId );
+    }
     
-    setInterval( ev => {
+    NoticeTimeoutId = setTimeout( ev => {        
         ClearNode( elem );
-    }, 5000 );
+
+        NoticeTimeoutId = undefined;
+    }, 2500 );
 }
 
 //#region tab group management functions
@@ -424,9 +434,13 @@ function CreateTabGroupsHtml()
 
     AutoClosePause();
 
+    let tableWrapper = document.getElementById( "div_tableWrapper" );
+
     let div = document.getElementById( "tbl_tabGroupList" );
 
     ClearNode( div );
+
+    tableWrapper.style["height"] = "auto";
 
     let count = 0;
 
@@ -444,7 +458,7 @@ function CreateTabGroupsHtml()
         }
     }
 
-    let tableWrapper = document.getElementById( "div_tableWrapper" );
+    
     
     if( tableWrapper.clientHeight > tabGroupTableMaxHeight )
     {
@@ -836,22 +850,28 @@ function AutoCloseMouseEnter( ev )
 
 function AutoClosePause()
 {
-    document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
+    if( settings.autoClosePopup )
+    {
+        document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
+    }
 }
 
 function AutoCloseResume()
 {
-    document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
-
-    if( !isCursorInWindow )
+    if( settings.autoClosePopup )
     {
-        AutoCloseMouseLeave();
+        document.body.addEventListener( "mouseleave", AutoCloseMouseLeave );
+
+        if( !isCursorInWindow )
+        {
+            AutoCloseMouseLeave();
+        }
     }
 }
 
 function SetAutoClose( bClose = false )
 {
-    //clean global value and listners
+    //reset global value and listners
     AutoCloseMouseEnterFlag = false;
 
     document.body.removeEventListener( "mouseleave", AutoCloseMouseLeave );
@@ -875,6 +895,8 @@ window.onload = async function()
         console.error( "server port: disconnected" );
     } );
 
+    let newGroupId = undefined;
+
     port.onMessage.addListener( obj => {
         dlog( `background message`, obj );
         switch( obj.msg )
@@ -894,7 +916,18 @@ window.onload = async function()
 
                 tabGroups = obj.data.tabGroups;
 
-                PagerInit( state.currentGroup );
+                if( newGroupId == undefined )
+                {
+                    tabGroupTableMaxHeight = 0;
+
+                    PagerInit( state.currentGroup );
+                }
+                else
+                {
+                    PagerInit( newGroupId );
+
+                    newGroupId = undefined;
+                }
 
                 CreateTabGroupsHtml();
 
@@ -938,6 +971,8 @@ window.onload = async function()
 
                 Notice( "A new group is added.");
 
+                newGroupId = obj.data.groupId;
+
                 port.postMessage( { msg: bgMsg.GetInfos } );
 
                 break;
@@ -952,8 +987,6 @@ window.onload = async function()
                 }
 
                 Notice( `${tabGroups[obj.data.id].name} is removed.` );
-
-                tabGroupTableMaxHeight = 0;
 
                 port.postMessage( { msg: bgMsg.GetInfos } );
 
@@ -996,11 +1029,7 @@ window.onload = async function()
                     return;
                 }
 
-                Notice( 'ResetAll' );
-
-                tabGroupTableMaxHeight = 0;
-
-                port.postMessage( { msg: bgMsg.GetInfos } );
+                window.close();
 
                 break;
             }
