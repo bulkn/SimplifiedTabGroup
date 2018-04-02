@@ -68,6 +68,10 @@ table
     height: 1em;
 }
 
+#div_settingList
+{
+    margin-left:0.5em;    
+}
 
 .cButtons, .cDummyButton
 {
