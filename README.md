@@ -1,9 +1,9 @@
 # SimplifiedTabGroup
-Simple tab manegement WebExtension for firefox.
+Simple tab manegement webextension for firefox.
 
 ## requirements
 Firefox 59+
 
-Requires to set extensions.webextensions.tabhide.enabled to true in about:config.
+Requires to set 'extensions.webextensions.tabhide.enabled' to true in 'about:config'.
 
 ## release
