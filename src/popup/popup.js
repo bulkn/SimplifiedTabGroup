@@ -646,8 +646,11 @@ function OnSettingClicked()
         elem.className = "cHidden";
 
         AutoCloseResume();
+
         return;
     }
+
+    elem.className = "";
 
     //show setting
     cb_discardWhenHidden.checked = settings.discardWhenHidden;
@@ -680,9 +683,11 @@ function OnSettingClicked()
         port.postMessage( { msg: bgMsg.SetAutoClosePopup, data: ev.target.checked } );
     } );
 
-    elem.className = "";
-
-    AutoCloseResume();
+    //because popup window flicks sometime, then that fires mouseleave
+    setTimeout( e => { 
+        isCursorInWindow = true;
+        AutoCloseResume();
+    }, 100 );
 }
 
 function OnMuteClicked( ev )
@@ -1198,7 +1203,8 @@ window.onload = async function()
     document.body.addEventListener( 'mouseleave', ev => { 
         isCursorInWindow = false;
     } );
-    document.body.  addEventListener( 'mouseenter', ev => { 
+
+    document.body.addEventListener( 'mouseenter', ev => { 
         isCursorInWindow = true;
     } );
 }

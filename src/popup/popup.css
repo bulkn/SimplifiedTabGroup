@@ -84,8 +84,9 @@ table
 
 .cHidden
 {
-    display:none;
+    display: none;
 }
+
 .cText 
 {
     font-size: small;
