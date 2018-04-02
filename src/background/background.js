@@ -1257,7 +1257,7 @@ window.onload = async function()
         }
     }
 
-    async function WindowFocusChanged( windowId )
+    function WindowFocusChanged( windowId )
     {
         try
         {
@@ -1272,9 +1272,11 @@ window.onload = async function()
 
             if( state.currentWindow == undefined )
             {
-                let window = await browser.windows.get( windowId );
-
-                return WindowFocusChanged( windowId );
+                browser.windows.getCurrent().then( cW => {
+                    return WindowFocusChanged( cW.id );
+                } ).catch( e => {
+                    console.error( `windows.getCurrent()`, e );
+                } );
             }
         }
         catch( e )
