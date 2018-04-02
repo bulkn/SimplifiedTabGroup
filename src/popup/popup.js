@@ -683,7 +683,7 @@ function OnSettingClicked()
         port.postMessage( { msg: bgMsg.SetAutoClosePopup, data: ev.target.checked } );
     } );
 
-    //because popup window flicks sometime, then that fires mouseleave
+    //because popup window flicks sometime when dom is showed, then that fires mouseleave
     setTimeout( e => { 
         isCursorInWindow = true;
         AutoCloseResume();
