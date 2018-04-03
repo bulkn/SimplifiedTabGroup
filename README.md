@@ -13,4 +13,5 @@ Also set "Show your windows and tabs from last time" in General option.
 ![screenshot_option](screenshots/Screenshot_option.png)
 
 ## install
+This version may contain bugs. So please install at your own risk.
 [xpi](https://github.com/bulkn/SimplifiedTabGroup/releases/download/0.1.10/simplifiedtabgroup-0.1.10-an.fx.xpi)
