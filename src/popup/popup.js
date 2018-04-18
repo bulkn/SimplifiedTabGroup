@@ -599,6 +599,28 @@ function SetPagerListeners()
     {
         prev.addEventListener( "click", PagerPreviousOnClicked );
     }
+
+    document.getElementById( "div_tabGroupList" ).addEventListener( "wheel", PagerWheelListener );
+}
+
+function PagerWheelListener( ev )
+{
+    if( ev.deltaY < 0 )
+    {
+        if( document.getElementById( "pagerPrev") )
+        {
+            document.getElementById( "div_tabGroupList" ).removeEventListener( "wheel", PagerWheelListener );
+            PagerPreviousOnClicked();
+        }
+    }
+    else
+    {
+        if( document.getElementById( "pagerNext" ) )
+        {
+            document.getElementById( "div_tabGroupList" ).removeEventListener( "wheel", PagerWheelListener );
+            PagerNextOnClicked();
+        } 
+    }
 }
 function PagerNumblerOnClicked( ev ) 
 {
