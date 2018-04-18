@@ -85,6 +85,19 @@ function dlog( ...args )
         console.log( 'dlog', Clone( args ) );
     }
 }
+function Sleep( ms = 0 )
+{
+    return new Promise( ( resolve, reject ) => {
+        try
+        {
+            setTimeout( ()=>{ resolve(); }, ms );
+        }
+        catch( e )
+        {
+            reject( e );
+        }
+    } );
+}
 //#endregion
 
 window.onload = async function()
@@ -488,6 +501,26 @@ window.onload = async function()
                 for( let window of allWindows )
                 {
                     let windowId = await browser.sessions.getWindowValue( window.id, sessionKeys.windowId );
+
+                    //happens when browser crashed then restore session.
+                    if( windowId == undefined )
+                    {
+                        let attempt = 0;
+
+                        while( windowId == undefined )
+                        {
+                            await Sleep( 100 );
+
+                            windowId = await browser.sessions.getWindowValue( window.id, sessionKeys.windowId );
+
+                            attempt++;
+
+                            if( attempt > 600 && windowId == undefined )
+                            {
+                                throw "windowId is undefined.";
+                            }
+                        }
+                    }
         
                     windows[windowId].id = window.id;
         
@@ -1301,7 +1334,6 @@ window.onload = async function()
 
             let restoredId = await browser.sessions.getWindowValue( windowObj.id, sessionKeys.windowId );
 
-            
             if( restoredId != undefined )
             {            
                 let sessionInfo = await browser.sessions.getWindowValue( windowObj.id, sessionKeys.windowInfo );
